@@ -8,8 +8,11 @@ uvicorn[standard]~=0.32.0
 gunicorn~=23.0.0
 
 # --- Validation / settings -----------------------------------------------
+# pydantic-settings must be >=2.7 for the `NoDecode` marker used in
+# config/settings.py to source comma-separated list fields (ALLOWED_HOSTS,
+# CORS_ORIGINS) from plain .env values instead of requiring JSON syntax.
 pydantic~=2.9.0
-pydantic-settings~=2.6.0
+pydantic-settings~=2.10.0
 email-validator~=2.2.0
 
 # --- Persistence -----------------------------------------------------------
@@ -23,3 +26,13 @@ loguru~=0.7.2
 
 # --- Security / middleware ---------------------------------------------------
 slowapi~=0.1.9
+pyjwt~=2.9.0
+# argon2-cffi hashes low-entropy secrets (OTP codes) with a deliberately slow,
+# salted KDF — a fast hash like SHA-256 would be brute-forceable given an OTP
+# only has ~1e6 possible values.
+argon2-cffi~=23.1.0
+
+# --- Outbound HTTP (SMS provider) -----------------------------------------------
+# Used directly (not the synchronous `twilio` SDK) so OTP delivery stays
+# async and doesn't block the event loop.
+httpx~=0.27.2

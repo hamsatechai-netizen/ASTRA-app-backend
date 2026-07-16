@@ -1,16 +1,17 @@
 """
-Blocks until PostgreSQL accepts connections.
+Blocks until the Supabase PostgreSQL database accepts connections.
 
 Used as an entrypoint guard in orchestration environments (Docker Compose,
-Kubernetes init containers) so the API process doesn't start racing the
-database's own startup.
+Kubernetes init containers) so the API process doesn't start racing a
+transient network issue or a paused/waking Supabase project.
 """
+
 import asyncio
 import sys
 
-from sqlalchemy.ext.asyncio import create_async_engine
-
 from app.config.settings import get_settings
+from app.database.session import build_connect_args
+from sqlalchemy.ext.asyncio import create_async_engine
 
 MAX_ATTEMPTS = 30
 DELAY_SECONDS = 1.0
@@ -18,7 +19,7 @@ DELAY_SECONDS = 1.0
 
 async def wait_for_db() -> None:
     settings = get_settings()
-    engine = create_async_engine(str(settings.DATABASE_URL))
+    engine = create_async_engine(str(settings.DATABASE_URL), connect_args=build_connect_args(settings))
 
     for attempt in range(1, MAX_ATTEMPTS + 1):
         try:

@@ -15,7 +15,7 @@ Production-grade FastAPI backend, built on Enterprise Clean Architecture.
 | Validation      | Pydantic v2 / pydantic-settings          |
 | ORM             | SQLAlchemy 2.x (async, asyncpg driver)   |
 | Migrations      | Alembic                                  |
-| Database        | PostgreSQL                               |
+| Database        | PostgreSQL (Supabase-hosted)             |
 | Server          | Uvicorn (dev) / Gunicorn + Uvicorn workers (prod) |
 | Logging         | Loguru (structured, JSON-capable)        |
 | Testing         | Pytest + httpx + pytest-asyncio          |
@@ -32,16 +32,19 @@ make install-dev
 
 # 3. Configure environment
 cp .env.example .env
-# edit .env — at minimum set SECRET_KEY and DATABASE_URL
+# edit .env — set SECRET_KEY and DATABASE_URL (your Supabase project's
+# Postgres connection string, from Settings -> Database in the Supabase
+# dashboard; see the comments in .env.example for the exact format)
 
-# 4. Start PostgreSQL (or point DATABASE_URL at an existing instance)
-docker compose up -d db
-
-# 5. Run the app
+# 4. Run the app — connects straight to Supabase, no local database needed
 make dev          # http://localhost:8000/docs
 ```
 
-Or run everything (API + PostgreSQL) in containers:
+There is no local database to stand up: every environment (local, staging,
+production) talks to the same Supabase Postgres instance (or separate
+per-environment Supabase projects), addressed purely through `DATABASE_URL`.
+
+Or run the API in a container (still connecting out to Supabase):
 
 ```bash
 cp .env.example .env
@@ -59,7 +62,7 @@ make docker-up
 | `make typecheck`     | mypy strict type checking                         |
 | `make migrate-generate m="message"` | Autogenerate an Alembic migration  |
 | `make migrate`       | Apply migrations                                  |
-| `make docker-up`     | Build and run API + PostgreSQL via Compose        |
+| `make docker-up`     | Build and run the API via Compose (connects to Supabase) |
 
 ## API documentation
 
@@ -69,6 +72,29 @@ Once running:
 - ReDoc → `/redoc`
 - OpenAPI schema → `/openapi.json`
 
+## Database (Supabase)
+
+The database is Supabase-hosted PostgreSQL — there is no local Postgres
+container in this project. `DATABASE_URL` (in `.env`) is the single source
+of truth and must use the `postgresql+asyncpg://` scheme; see
+`.env.example` for the three connection formats Supabase offers (direct,
+Supavisor session-mode pooler, Supavisor transaction-mode pooler) and when
+to use each.
+
+Two related settings in `config/settings.py` / `.env` control
+Supabase-specific connection behavior (see `database/session.py` for how
+they're applied):
+
+- `DATABASE_SSL_REQUIRED` (default `true`) — Supabase requires TLS on every
+  connection.
+- `DATABASE_USE_PGBOUNCER` (default `false`) — set to `true` only if
+  `DATABASE_URL` points at the transaction-mode pooler (port `6543`), which
+  needs asyncpg's prepared-statement cache disabled to work correctly.
+
+Alembic (`migrations/env.py`) reads the same `DATABASE_URL`, so
+`make migrate` / `make migrate-generate` run against Supabase directly —
+there's nothing separate to configure for migrations.
+
 ## Project structure
 
 ```
@@ -77,7 +103,7 @@ app/
 ├── api/v1/              Presentation layer: versioned routers only, no logic.
 ├── core/                Bootstrap: logging configuration, app lifespan events.
 ├── config/               Environment-driven settings (pydantic-settings).
-├── database/            SQLAlchemy async engine, session factory, declarative Base.
+├── database/            SQLAlchemy async engine (connects to Supabase Postgres via DATABASE_URL), session factory, declarative Base.
 ├── models/               ORM models + shared mixins (UUID PK, UTC timestamps).
 ├── schemas/              Pydantic request/response DTOs.
 ├── repositories/         Repository Pattern: data-access abstractions over the ORM.
