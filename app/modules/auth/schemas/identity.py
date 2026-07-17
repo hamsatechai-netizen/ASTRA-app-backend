@@ -17,5 +17,7 @@ from app.schemas.base import BaseSchema
 class AuthenticatedIdentity(BaseSchema):
     """Decoded, trusted identity extracted from a validated access token."""
 
-    athlete_id: UUID = Field(..., description="Subject of the token — the authenticated athlete's ID.")
-    phone_number: str = Field(..., description="The athlete's verified phone number.")
+    # `hamsatech.users.id` — distinct from `hamsatech.athletes.athlete_id`
+    # (a different table, a different text-typed ID). See `AuthResponse`.
+    user_id: UUID = Field(..., description="Subject of the token — the authenticated user's ID.")
+    phone_number: str = Field(..., description="The user's verified phone number.")

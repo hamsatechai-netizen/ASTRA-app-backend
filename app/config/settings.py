@@ -48,6 +48,7 @@ class Settings(BaseSettings):
 
     # --- API ---------------------------------------------------------------
     API_V1_PREFIX: str = "/api/v1"
+    API_V2_PREFIX: str = "/api/v2"
 
     # --- Security ------------------------------------------------------------
     SECRET_KEY: str = Field(

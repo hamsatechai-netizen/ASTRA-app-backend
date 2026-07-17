@@ -1,21 +1,32 @@
 """
 OTP business-logic service.
 
-Send OTP is fully implemented: enforce the resend cooldown, generate and
-hash a new OTP, persist it, then dispatch it via the configured SMS
-provider. `verify_otp` remains a signature-only stub — verification is a
-later phase.
+Both Send OTP and Verify OTP are fully implemented: send enforces the
+resend cooldown, generates and hashes a new OTP, persists it, then
+dispatches it via the configured SMS provider; verify checks the active
+challenge's expiry and attempt count, compares the hash, and consumes
+(deletes) the challenge on success so it can never be replayed.
 """
 
 from datetime import timedelta
 
 from loguru import logger
 
-from app.modules.auth.constants import OTP_EXPIRY_SECONDS, OTP_RESEND_COOLDOWN_SECONDS
-from app.modules.auth.exceptions import TooManyAttemptsException
+from app.modules.auth.constants import (
+    OTP_EXPIRY_SECONDS,
+    OTP_MAX_VERIFICATION_ATTEMPTS,
+    OTP_RESEND_COOLDOWN_SECONDS,
+)
+from app.modules.auth.exceptions import InvalidOTPException, OTPExpiredException, TooManyAttemptsException
 from app.modules.auth.providers.sms_provider import SMSProviderInterface
 from app.modules.auth.repositories.otp_repository_interface import OTPRepositoryInterface
-from app.modules.auth.security import calculate_otp_expiry, generate_otp_code, hash_otp, is_expired
+from app.modules.auth.security import (
+    calculate_otp_expiry,
+    generate_otp_code,
+    hash_otp,
+    is_expired,
+    verify_otp_hash,
+)
 
 
 class OTPService:
@@ -42,14 +53,31 @@ class OTPService:
         await self._sms_provider.send(phone_number, message)
         logger.info("SMS sent successfully to {}", phone_number)
 
-    async def verify_otp(self, phone_number: str, otp_code: str) -> bool:
+    async def verify_otp(self, phone_number: str, otp_code: str) -> None:
         """
         Verify `otp_code` against the active challenge for `phone_number`.
 
-        Once implemented, raises `InvalidOTPException`, `OTPExpiredException`,
-        or `TooManyAttemptsException` on failure instead of returning False.
+        Raises `InvalidOTPException` if no challenge exists (or the code is
+        wrong), `OTPExpiredException` if the challenge has expired, or
+        `TooManyAttemptsException` if the attempt limit has been reached.
+        On success the challenge is deleted so it can never be replayed.
         """
-        raise NotImplementedError("OTP verification is implemented in a later phase.")
+        challenge = await self._repository.get_by_phone(phone_number)
+        if challenge is None:
+            raise InvalidOTPException("No OTP was requested for this phone number.")
+
+        if challenge.attempts >= OTP_MAX_VERIFICATION_ATTEMPTS:
+            raise TooManyAttemptsException("Too many incorrect attempts. Please request a new OTP.")
+
+        if is_expired(challenge.expires_at):
+            raise OTPExpiredException()
+
+        if not verify_otp_hash(otp_code, challenge.otp_hash):
+            await self._repository.increment_attempts(phone_number)
+            raise InvalidOTPException()
+
+        await self._repository.delete_by_phone(phone_number)
+        logger.info("OTP verified successfully for phone {}", phone_number)
 
     async def _enforce_resend_cooldown(self, phone_number: str) -> None:
         """Reject with `TooManyAttemptsException` if `phone_number` requested an OTP too recently."""

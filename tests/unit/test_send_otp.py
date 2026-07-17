@@ -25,7 +25,7 @@ from fastapi.testclient import TestClient
 from loguru import logger
 
 VALID_PHONE = "+919876543210"
-ENDPOINT = "/api/v1/auth/phone/send-otp"
+ENDPOINT = "/api/v2/auth/phone/send-otp"
 
 
 class FakeOTPRepository(OTPRepositoryInterface):
@@ -60,6 +60,14 @@ class FakeOTPRepository(OTPRepositoryInterface):
         challenge.updated_at = now
         self.records[phone_number] = challenge
         return challenge
+
+    async def increment_attempts(self, phone_number: str) -> int:
+        challenge = self.records[phone_number]
+        challenge.attempts += 1
+        return challenge.attempts
+
+    async def delete_by_phone(self, phone_number: str) -> None:
+        self.records.pop(phone_number, None)
 
 
 class FakeSMSProvider(SMSProviderInterface):

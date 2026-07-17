@@ -18,6 +18,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.api.v1.router import api_router as api_router_v1
+from app.api.v2.router import api_router as api_router_v2
 from app.config.settings import get_settings
 from app.core.events import lifespan
 from app.core.logging import configure_logging
@@ -68,6 +69,7 @@ def create_application() -> FastAPI:
 
     # --- Versioned API ------------------------------------------------------
     app.include_router(api_router_v1, prefix=settings.API_V1_PREFIX)
+    app.include_router(api_router_v2, prefix=settings.API_V2_PREFIX)
 
     return app
 

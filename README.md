@@ -100,7 +100,7 @@ there's nothing separate to configure for migrations.
 ```
 app/
 ├── main.py             Composition root — builds the FastAPI app instance.
-├── api/v1/              Presentation layer: versioned routers only, no logic.
+├── api/v1/, api/v2/      Presentation layer: versioned routers only, no logic. Auth lives under v2.
 ├── core/                Bootstrap: logging configuration, app lifespan events.
 ├── config/               Environment-driven settings (pydantic-settings).
 ├── database/            SQLAlchemy async engine (connects to Supabase Postgres via DATABASE_URL), session factory, declarative Base.

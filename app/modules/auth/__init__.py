@@ -18,5 +18,5 @@ Submodules:
     dependencies/ FastAPI DI providers (current athlete, authorization, ...) — stubs.
     repositories/ Abstract repository contract for future persistence.
     services/     Abstract service contracts (AuthService, OTPService, TokenService).
-    routers/      The versioned auth router, mounted under `/api/v1/auth`.
+    routers/      The versioned auth router, mounted under `/api/v2/auth`.
 """

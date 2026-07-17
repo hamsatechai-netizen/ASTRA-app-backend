@@ -11,7 +11,7 @@ _PHONE_PUNCTUATION = re.compile(r"[\s\-()]")
 
 
 class SendOTPRequest(BaseSchema):
-    """Request body for `POST /api/v1/auth/phone/send-otp`."""
+    """Request body for `POST /api/v2/auth/phone/send-otp`."""
 
     phone: str = Field(
         ...,
@@ -30,7 +30,7 @@ class SendOTPRequest(BaseSchema):
 
 
 class VerifyOTPRequest(BaseSchema):
-    """Request body for `POST /api/v1/auth/phone/verify-otp`."""
+    """Request body for `POST /api/v2/auth/phone/verify-otp`."""
 
     phone_number: str = Field(
         ...,

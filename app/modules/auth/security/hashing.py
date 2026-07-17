@@ -10,6 +10,7 @@ returned PHC-format string — there is no separate salt to manage or store.
 """
 
 from argon2 import PasswordHasher
+from argon2.exceptions import InvalidHash, VerificationError, VerifyMismatchError
 
 _hasher = PasswordHasher()
 
@@ -17,3 +18,11 @@ _hasher = PasswordHasher()
 def hash_otp(otp_code: str) -> str:
     """Return a salted Argon2id hash of `otp_code`, safe to store at rest."""
     return _hasher.hash(otp_code)
+
+
+def verify_otp_hash(otp_code: str, otp_hash: str) -> bool:
+    """Return True if `otp_code` matches `otp_hash`, False on any mismatch or malformed hash."""
+    try:
+        return _hasher.verify(otp_hash, otp_code)
+    except (VerifyMismatchError, VerificationError, InvalidHash):
+        return False

@@ -1,16 +1,13 @@
 """
 v1 API router aggregator.
 
-`main.py` mounts `api_router` once, under `settings.API_V1_PREFIX`.
-Feature routers are included here — the auth module's router is the
-first; registration, onboarding, dashboard, and profile routers will
-follow the same pattern.
+`main.py` mounts `api_router` once, under `settings.API_V1_PREFIX`. The
+auth module's router moved to `app/api/v2/router.py` (see that module).
+No v1 feature routers exist at present; this aggregator is kept mounted
+(empty) so the versioned-namespace pattern is ready for any endpoint that
+is deliberately introduced as v1 in the future.
 """
 
 from fastapi import APIRouter
 
-from app.modules.auth.routers import auth_router
-
 api_router = APIRouter()
-
-api_router.include_router(auth_router, prefix="/auth", tags=["Authentication"])

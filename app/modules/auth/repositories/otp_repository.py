@@ -10,7 +10,7 @@ route completes.
 
 from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.otp_challenge import OTPChallenge
@@ -45,3 +45,15 @@ class OTPRepository(OTPRepositoryInterface):
 
         await self._session.flush()
         return challenge
+
+    async def increment_attempts(self, phone_number: str) -> int:
+        existing = await self.get_by_phone(phone_number)
+        if existing is None:
+            return 0
+        existing.attempts += 1
+        await self._session.flush()
+        return existing.attempts
+
+    async def delete_by_phone(self, phone_number: str) -> None:
+        await self._session.execute(delete(OTPChallenge).where(OTPChallenge.phone_number == phone_number))
+        await self._session.flush()

@@ -1,18 +1,18 @@
 """
 Auth router.
 
-`send_otp` is fully implemented: validates the phone number, then
-delegates to `AuthService` (which enforces the resend cooldown, generates
-and hashes the OTP, persists it, and dispatches it via SMS). `verify_otp`
-remains an undocumented-logic placeholder — always returns HTTP 501 — since
-OTP verification is a later phase. Mounted under `/api/v1/auth` via
-`app/api/v1/router.py`, giving the full paths
-`/api/v1/auth/phone/send-otp` and `/api/v1/auth/phone/verify-otp`.
+Both endpoints are fully implemented, each delegating entirely to
+`AuthService`: `send_otp` enforces the resend cooldown, generates and
+hashes the OTP, persists it, and dispatches it via SMS; `verify_otp`
+verifies the code, resolves (or creates) the user identity and athlete
+onboarding status, and issues a token pair. Mounted under `/api/v2/auth`
+via `app/api/v2/router.py`, giving the full paths
+`/api/v2/auth/phone/send-otp` and `/api/v2/auth/phone/verify-otp`.
 """
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 
 from app.modules.auth.dependencies.services import get_auth_service
 from app.modules.auth.schemas import (
@@ -41,10 +41,22 @@ _SEND_OTP_RESPONSES: dict[int | str, dict[str, Any]] = {
     },
 }
 
-_VERIFY_OTP_NOT_IMPLEMENTED_RESPONSE: dict[int | str, dict[str, Any]] = {
-    status.HTTP_501_NOT_IMPLEMENTED: {
+_VERIFY_OTP_RESPONSES: dict[int | str, dict[str, Any]] = {
+    status.HTTP_400_BAD_REQUEST: {
         "model": ErrorResponse,
-        "description": "Not implemented yet — Verify OTP is a later phase.",
+        "description": "The OTP is invalid or has expired.",
+    },
+    status.HTTP_422_UNPROCESSABLE_ENTITY: {
+        "model": ErrorResponse,
+        "description": "The phone number or OTP code failed format validation.",
+    },
+    status.HTTP_429_TOO_MANY_REQUESTS: {
+        "model": ErrorResponse,
+        "description": "Too many incorrect attempts for this phone number's active OTP.",
+    },
+    status.HTTP_500_INTERNAL_SERVER_ERROR: {
+        "model": ErrorResponse,
+        "description": "An unexpected error occurred.",
     },
 }
 
@@ -73,18 +85,18 @@ async def send_otp(
 @router.post(
     "/phone/verify-otp",
     response_model=AuthResponse,
-    responses=_VERIFY_OTP_NOT_IMPLEMENTED_RESPONSE,
+    responses=_VERIFY_OTP_RESPONSES,
     summary="Verify a one-time passcode and authenticate",
     description=(
-        "Verifies the OTP for the given phone number and, on success, issues "
-        "an access/refresh token pair. **Not implemented in this phase — "
-        "always returns HTTP 501.**"
+        "Verifies the OTP for the given phone number. On success, resolves "
+        "(or creates) the user identity and athlete onboarding status, and "
+        "issues an access/refresh token pair."
     ),
     tags=["Authentication"],
 )
-async def verify_otp(payload: VerifyOTPRequest) -> AuthResponse:
-    """Placeholder endpoint. OTP verification and token issuance are implemented in a later phase."""
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Verify-OTP is not implemented yet.",
-    )
+async def verify_otp(
+    payload: VerifyOTPRequest,
+    auth_service: AuthService = Depends(get_auth_service),
+) -> AuthResponse:
+    """Verify `payload.otp_code` for `payload.phone_number` and authenticate."""
+    return await auth_service.verify_otp(payload.phone_number, payload.otp_code)

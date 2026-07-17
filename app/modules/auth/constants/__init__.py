@@ -8,6 +8,7 @@ Phase 2) services are all defined in terms of, kept in one place so they
 never drift apart.
 """
 
+from enum import StrEnum
 from typing import Final
 
 # --- OTP -------------------------------------------------------------------
@@ -27,3 +28,10 @@ TOKEN_TYPE_BEARER: Final[str] = "bearer"
 PHONE_NUMBER_PATTERN: Final[str] = r"^\+[1-9]\d{7,14}$"
 # Numeric OTP code of exactly OTP_LENGTH digits.
 OTP_CODE_PATTERN: Final[str] = rf"^\d{{{OTP_LENGTH}}}$"
+
+
+class OnboardingStatus(StrEnum):
+    """Where the client should route to after successful authentication."""
+
+    HOME = "HOME"
+    ONBOARDING_STEP_1 = "ONBOARDING_STEP_1"
