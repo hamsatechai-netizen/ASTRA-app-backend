@@ -8,6 +8,7 @@ needs, nothing about the wider `hamsatech` schema.
 """
 
 from abc import ABC, abstractmethod
+from uuid import UUID
 
 from app.models.hamsatech_user import HamsaTechUser
 
@@ -18,6 +19,10 @@ class UserRepositoryInterface(ABC):
     @abstractmethod
     async def get_by_phone(self, phone_number: str) -> HamsaTechUser | None:
         """Return the user identity for `phone_number`, or None if no account exists."""
+
+    @abstractmethod
+    async def get_by_id(self, user_id: UUID) -> HamsaTechUser | None:
+        """Return the user identity for `user_id`, or None if no account exists."""
 
     @abstractmethod
     async def create(self, phone_number: str) -> HamsaTechUser:

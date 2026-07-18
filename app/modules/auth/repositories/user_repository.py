@@ -5,6 +5,8 @@ commits — the request-scoped `AsyncSession` from
 `app.dependencies.database.get_db` owns the transaction boundary.
 """
 
+from uuid import UUID
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,6 +23,10 @@ class UserRepository(UserRepositoryInterface):
         result = await self._session.execute(
             select(HamsaTechUser).where(HamsaTechUser.phone_number == phone_number)
         )
+        return result.scalar_one_or_none()
+
+    async def get_by_id(self, user_id: UUID) -> HamsaTechUser | None:
+        result = await self._session.execute(select(HamsaTechUser).where(HamsaTechUser.id == user_id))
         return result.scalar_one_or_none()
 
     async def create(self, phone_number: str) -> HamsaTechUser:

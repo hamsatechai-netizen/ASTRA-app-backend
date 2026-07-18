@@ -80,6 +80,9 @@ class FakeUserRepository(UserRepositoryInterface):
     async def get_by_phone(self, phone_number: str) -> HamsaTechUser | None:
         return self.users.get(phone_number)
 
+    async def get_by_id(self, user_id: uuid.UUID) -> HamsaTechUser | None:
+        return next((user for user in self.users.values() if user.id == user_id), None)
+
     async def create(self, phone_number: str) -> HamsaTechUser:
         user = HamsaTechUser(id=uuid.uuid4(), phone_number=phone_number)
         self.users[phone_number] = user

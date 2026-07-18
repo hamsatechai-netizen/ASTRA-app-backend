@@ -10,7 +10,9 @@ routers introduced as v2 follow the same pattern.
 from fastapi import APIRouter
 
 from app.modules.auth.routers import auth_router
+from app.modules.onboarding.routers import onboarding_router
 
 api_router = APIRouter()
 
 api_router.include_router(auth_router, prefix="/auth", tags=["Authentication"])
+api_router.include_router(onboarding_router, prefix="/onboarding", tags=["Onboarding"])

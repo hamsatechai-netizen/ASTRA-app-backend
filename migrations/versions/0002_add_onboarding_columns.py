@@ -1,6 +1,6 @@
 """add onboarding columns to hamsatech.athletes
 
-Revision ID: 0002_add_athlete_onboarding_columns
+Revision ID: 0002_add_onboarding_columns
 Revises: 0001_create_otp_challenges
 Create Date: 2026-07-18
 
@@ -20,6 +20,14 @@ a constant `DEFAULT 1`. A nullable column add with no default, or with
 a constant default, is a metadata-only change on PostgreSQL 11+ (no
 table rewrite, no scan of existing rows) — existing rows are not
 touched and no other column, constraint, index, or table is referenced.
+
+Revision id kept to 27 characters deliberately: Alembic's default
+`alembic_version.version_num` column is `VARCHAR(32)`, and the original
+`0002_add_athlete_onboarding_columns` (35 chars) overflowed it —
+discovered when `alembic upgrade head` rolled back cleanly (transactional
+DDL) on a `StringDataRightTruncationError` from the version-bookkeeping
+UPDATE, after the ADD COLUMN statements themselves had already succeeded
+in the same transaction.
 """
 
 from collections.abc import Sequence
@@ -27,7 +35,7 @@ from collections.abc import Sequence
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "0002_add_athlete_onboarding_columns"
+revision: str = "0002_add_onboarding_columns"
 down_revision: str | None = "0001_create_otp_challenges"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
