@@ -1,6 +1,7 @@
 """Request DTOs for the onboarding flow."""
 
 from datetime import date
+from uuid import UUID
 
 from pydantic import Field
 
@@ -26,3 +27,46 @@ class OnboardingStep1Request(BaseSchema):
     )
     gender: Gender = Field(..., description="Athlete's gender.", examples=["Female"])
     city: str = Field(..., min_length=1, description="Athlete's city.", examples=["Mumbai"])
+
+
+class OnboardingStep2Request(BaseSchema):
+    """Request body for `PUT /api/v2/onboarding/step-2` (Athletic Background)."""
+
+    discipline: str = Field(..., min_length=1, description="Shooting discipline.", examples=["10m Air Rifle"])
+    experience_level: str = Field(
+        ...,
+        alias="experienceLevel",
+        min_length=1,
+        description="Experience level.",
+        examples=["1 - 2 Years (Intermediate)"],
+    )
+    years_shooting: int = Field(..., alias="yearsShooting", ge=0, description="Years of shooting experience.")
+    academy_id: UUID = Field(
+        ..., alias="academyId", description="Athlete's academy (hamsatech.academies.academy_id)."
+    )
+
+
+class OnboardingStep3Request(BaseSchema):
+    """Request body for `PUT /api/v2/onboarding/step-3` (Track Your Performance)."""
+
+    average_practice_score: float = Field(
+        ..., alias="averagePracticeScore", description="Average practice score."
+    )
+    target_score: float = Field(..., alias="targetScore", description="Target score goal.")
+    performance_blockers: list[str] = Field(
+        ..., alias="performanceBlockers", description="Self-reported performance blockers."
+    )
+    goal_30_day: str = Field(..., alias="goal30Day", min_length=1, description="30-day goal.")
+    goal_6_month: str = Field(..., alias="goal6Month", min_length=1, description="6-month goal.")
+
+
+class OnboardingStep4Request(BaseSchema):
+    """Request body for `PUT /api/v2/onboarding/step-4` (Academic Profile)."""
+
+    class_: str = Field(
+        ..., alias="class", min_length=1, description="Current class/grade.", examples=["9th"]
+    )
+    school_name: str = Field(..., alias="schoolName", min_length=1, description="School name.")
+    academic_performance: str = Field(
+        ..., alias="academicPerformance", min_length=1, description="Self-reported academic performance."
+    )

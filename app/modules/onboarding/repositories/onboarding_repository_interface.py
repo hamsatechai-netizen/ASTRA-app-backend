@@ -13,6 +13,7 @@ interface, and never creates a new athlete row.
 
 from abc import ABC, abstractmethod
 from datetime import date
+from uuid import UUID
 
 from app.models.hamsatech_athlete import HamsaTechAthlete
 
@@ -40,3 +41,44 @@ class OnboardingRepositoryInterface(ABC):
         `date_of_birth`, `gender`, `city`, and `current_onboarding_step` —
         no other column on `athlete` is touched.
         """
+
+    @abstractmethod
+    async def save_step_2(
+        self,
+        athlete: HamsaTechAthlete,
+        *,
+        discipline: str,
+        experience_level: str,
+        years_shooting: int,
+        academy_id: UUID,
+    ) -> HamsaTechAthlete:
+        """
+        Persist Step 2 (Athletic Background) onto `athlete` and advance
+        `current_onboarding_step` to 3. Updates only
+        `weapon_specialization`, `experience_level`, `years_shooting`,
+        `academy_id`, and `current_onboarding_step` — no other column on
+        `athlete` is touched.
+        """
+
+    @abstractmethod
+    async def save_step_3(
+        self,
+        athlete: HamsaTechAthlete,
+        *,
+        average_practice_score: float,
+        target_score: float,
+        performance_blockers: list[str],
+        goal_30_day: str,
+        goal_6_month: str,
+    ) -> HamsaTechAthlete:
+        """
+        Persist Step 3 (Track Your Performance) onto `athlete` and advance
+        `current_onboarding_step` to 4. Updates only `avg_practice_score`,
+        `target_score`, `performance_blockers`, `goal_30_day`,
+        `goal_6_month`, and `current_onboarding_step` — no other column on
+        `athlete` is touched.
+        """
+
+    @abstractmethod
+    async def advance_onboarding_step(self, athlete: HamsaTechAthlete, step: int) -> HamsaTechAthlete:
+        """Set `athlete.current_onboarding_step` to `step` — no other column on `athlete` is touched."""
