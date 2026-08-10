@@ -50,3 +50,79 @@ class AthleteDetailsRepository(AthleteDetailsRepositoryInterface):
         details.academic_performance = academic_performance
         await self._session.flush()
         return details
+
+    async def create_step_5(
+        self,
+        athlete_id: str,
+        *,
+        diet_type: str,
+        outside_food_frequency: str,
+        sleep_time: str,
+        wake_time: str,
+    ) -> HamsaTechAthleteDetails:
+        details = HamsaTechAthleteDetails(
+            athlete_id=athlete_id,
+            diet_type=diet_type,
+            outside_food_frequency=outside_food_frequency,
+            sleep_time=sleep_time,
+            wake_time=wake_time,
+        )
+        self._session.add(details)
+        await self._session.flush()
+        return details
+
+    async def update_step_5(
+        self,
+        details: HamsaTechAthleteDetails,
+        *,
+        diet_type: str,
+        outside_food_frequency: str,
+        sleep_time: str,
+        wake_time: str,
+    ) -> HamsaTechAthleteDetails:
+        details.diet_type = diet_type
+        details.outside_food_frequency = outside_food_frequency
+        details.sleep_time = sleep_time
+        details.wake_time = wake_time
+        await self._session.flush()
+        return details
+
+    async def create_step_6(
+        self,
+        athlete_id: str,
+        *,
+        friend_circle: str,
+        anger_pattern: str,
+        sadness_pattern: str,
+        reason_for_shooting: str,
+        athlete_goal: str,
+    ) -> HamsaTechAthleteDetails:
+        details = HamsaTechAthleteDetails(
+            athlete_id=athlete_id,
+            friend_circle=friend_circle,
+            anger_pattern=anger_pattern,
+            sadness_pattern=sadness_pattern,
+            reason_for_shooting=reason_for_shooting,
+            athlete_goal=athlete_goal,
+        )
+        self._session.add(details)
+        await self._session.flush()
+        return details
+
+    async def update_step_6(
+        self,
+        details: HamsaTechAthleteDetails,
+        *,
+        friend_circle: str,
+        anger_pattern: str,
+        sadness_pattern: str,
+        reason_for_shooting: str,
+        athlete_goal: str,
+    ) -> HamsaTechAthleteDetails:
+        details.friend_circle = friend_circle
+        details.anger_pattern = anger_pattern
+        details.sadness_pattern = sadness_pattern
+        details.reason_for_shooting = reason_for_shooting
+        details.athlete_goal = athlete_goal
+        await self._session.flush()
+        return details

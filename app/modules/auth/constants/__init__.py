@@ -19,7 +19,7 @@ OTP_RESEND_COOLDOWN_SECONDS: Final[int] = 60
 
 # --- JWT ---------------------------------------------------------------------
 JWT_ALGORITHM: Final[str] = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES: Final[int] = 15
+ACCESS_TOKEN_EXPIRE_MINUTES: Final[int] = 60
 REFRESH_TOKEN_EXPIRE_DAYS: Final[int] = 30
 TOKEN_TYPE_BEARER: Final[str] = "bearer"
 
@@ -35,3 +35,8 @@ class OnboardingStatus(StrEnum):
 
     HOME = "HOME"
     ONBOARDING_STEP_1 = "ONBOARDING_STEP_1"
+    ONBOARDING_STEP_2 = "ONBOARDING_STEP_2"
+    ONBOARDING_STEP_3 = "ONBOARDING_STEP_3"
+    ONBOARDING_STEP_4 = "ONBOARDING_STEP_4"
+    ONBOARDING_STEP_5 = "ONBOARDING_STEP_5"
+    ONBOARDING_STEP_6 = "ONBOARDING_STEP_6"

@@ -70,3 +70,32 @@ class OnboardingStep4Request(BaseSchema):
     academic_performance: str = Field(
         ..., alias="academicPerformance", min_length=1, description="Self-reported academic performance."
     )
+
+
+class OnboardingStep5Request(BaseSchema):
+    """Request body for `PUT /api/v2/onboarding/step-5` (Lifestyle & Wellness)."""
+
+    diet_type: str = Field(..., alias="dietType", min_length=1, description="Diet type.", examples=["Mix"])
+    outside_food_frequency: str = Field(
+        ..., alias="outsideFoodFrequency", min_length=1, description="How often outside food is eaten."
+    )
+    sleep_time: str = Field(..., alias="sleepTime", min_length=1, description="Usual sleep time.")
+    wake_time: str = Field(..., alias="wakeTime", min_length=1, description="Usual wake time.")
+
+
+class OnboardingStep6Request(BaseSchema):
+    """Request body for `PUT /api/v2/onboarding/step-6` (Mental & Social Profile)."""
+
+    friend_circle: str = Field(
+        ..., alias="friendCircle", min_length=1, description="Friend circle description."
+    )
+    anger_pattern: str = Field(
+        ..., alias="angerPattern", min_length=1, description="Anger pattern description."
+    )
+    sadness_pattern: str = Field(
+        ..., alias="sadnessPattern", min_length=1, description="Sadness pattern description."
+    )
+    reason_for_shooting: str = Field(
+        ..., alias="reasonForShooting", min_length=1, description="Reason for taking up shooting."
+    )
+    athlete_goal: str = Field(..., alias="athleteGoal", min_length=1, description="Athlete's overall goal.")

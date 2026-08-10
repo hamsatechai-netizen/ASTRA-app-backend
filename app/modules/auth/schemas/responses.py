@@ -30,7 +30,11 @@ class AuthResponse(BaseSchema):
     user_id: UUID = Field(..., description="Unique identifier of the authenticated user.")
     is_new_user: bool = Field(..., description="True if this OTP verification created a new user record.")
     next_step: OnboardingStatus = Field(
-        ..., description="Where the client should route to: HOME or ONBOARDING_STEP_1."
+        ...,
+        description=(
+            "Where the client should route to: HOME if onboarding is complete, "
+            "otherwise the athlete's saved onboarding step (ONBOARDING_STEP_1 .. ONBOARDING_STEP_6)."
+        ),
     )
 
 

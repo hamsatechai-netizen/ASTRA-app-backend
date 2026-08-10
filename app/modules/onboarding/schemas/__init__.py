@@ -6,6 +6,8 @@ from app.modules.onboarding.schemas.requests import (
     OnboardingStep2Request,
     OnboardingStep3Request,
     OnboardingStep4Request,
+    OnboardingStep5Request,
+    OnboardingStep6Request,
 )
 from app.modules.onboarding.schemas.responses import OnboardingStatusResponse
 
@@ -14,6 +16,8 @@ __all__ = [
     "OnboardingStep2Request",
     "OnboardingStep3Request",
     "OnboardingStep4Request",
+    "OnboardingStep5Request",
+    "OnboardingStep6Request",
     "OnboardingStatusResponse",
     "ErrorResponse",
 ]

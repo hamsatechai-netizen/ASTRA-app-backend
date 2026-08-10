@@ -17,6 +17,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from app.api.mobile.router import api_router as api_router_mobile
 from app.api.v1.router import api_router as api_router_v1
 from app.api.v2.router import api_router as api_router_v2
 from app.config.settings import get_settings
@@ -70,6 +71,7 @@ def create_application() -> FastAPI:
     # --- Versioned API ------------------------------------------------------
     app.include_router(api_router_v1, prefix=settings.API_V1_PREFIX)
     app.include_router(api_router_v2, prefix=settings.API_V2_PREFIX)
+    app.include_router(api_router_mobile, prefix=settings.API_MOBILE_PREFIX)
 
     return app
 

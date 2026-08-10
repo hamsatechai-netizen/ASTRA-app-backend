@@ -2,12 +2,15 @@
 Comprehensive Verify OTP tests.
 
 Uses fakes for the OTP repository, user repository, athlete-profile
-repository, and SMS provider (via FastAPI's `dependency_overrides`) —
-this never touches the real `hamsatech.users`/`hamsatech.athletes`
-tables, which hold real production data. Exercises the full
+repository, athlete-details repository, and SMS provider (via FastAPI's
+`dependency_overrides`) — this never touches the real
+`hamsatech.users`/`hamsatech.athletes`/`hamsatech.athlete_details` tables,
+which hold real production data. Exercises the full
 `router -> AuthService -> (OTPService, UserService, TokenService)` path
 with the exact production wiring; only the repository/provider I/O
-boundaries are swapped for fakes.
+boundaries are swapped for fakes. The athlete-details repository is faked
+because `UserService.resolve_onboarding_status` now reuses
+`OnboardingService.is_onboarding_complete` to decide `next_step`.
 """
 
 import uuid
@@ -18,6 +21,7 @@ import jwt
 import pytest
 from app.config.settings import get_settings
 from app.models.hamsatech_athlete import HamsaTechAthlete
+from app.models.hamsatech_athlete_details import HamsaTechAthleteDetails
 from app.models.hamsatech_user import HamsaTechUser
 from app.models.otp_challenge import OTPChallenge
 from app.modules.auth.constants import JWT_ALGORITHM, OTP_MAX_VERIFICATION_ATTEMPTS
@@ -32,6 +36,10 @@ from app.modules.auth.repositories.athlete_profile_repository_interface import (
 from app.modules.auth.repositories.otp_repository_interface import OTPRepositoryInterface
 from app.modules.auth.repositories.user_repository_interface import UserRepositoryInterface
 from app.modules.auth.security import hash_otp
+from app.modules.onboarding.dependencies.services import get_athlete_details_repository
+from app.modules.onboarding.repositories.athlete_details_repository_interface import (
+    AthleteDetailsRepositoryInterface,
+)
 from app.utils.datetime import utc_now
 from fastapi.testclient import TestClient
 
@@ -109,6 +117,87 @@ class FakeAthleteProfileRepository(AthleteProfileRepositoryInterface):
         return athlete
 
 
+class FakeAthleteDetailsRepository(AthleteDetailsRepositoryInterface):
+    def __init__(self) -> None:
+        self.details: dict[str, HamsaTechAthleteDetails] = {}  # keyed by athlete_id
+
+    async def get_by_athlete_id(self, athlete_id: str) -> HamsaTechAthleteDetails | None:
+        return self.details.get(athlete_id)
+
+    async def create(
+        self, athlete_id: str, *, class_: str, school_name: str, academic_performance: str
+    ) -> HamsaTechAthleteDetails:
+        raise NotImplementedError("Not exercised by verify-otp tests.")
+
+    async def update(
+        self,
+        details: HamsaTechAthleteDetails,
+        *,
+        class_: str,
+        school_name: str,
+        academic_performance: str,
+    ) -> HamsaTechAthleteDetails:
+        raise NotImplementedError("Not exercised by verify-otp tests.")
+
+    async def create_step_5(
+        self,
+        athlete_id: str,
+        *,
+        diet_type: str,
+        outside_food_frequency: str,
+        sleep_time: str,
+        wake_time: str,
+    ) -> HamsaTechAthleteDetails:
+        raise NotImplementedError("Not exercised by verify-otp tests.")
+
+    async def update_step_5(
+        self,
+        details: HamsaTechAthleteDetails,
+        *,
+        diet_type: str,
+        outside_food_frequency: str,
+        sleep_time: str,
+        wake_time: str,
+    ) -> HamsaTechAthleteDetails:
+        raise NotImplementedError("Not exercised by verify-otp tests.")
+
+    async def create_step_6(
+        self,
+        athlete_id: str,
+        *,
+        friend_circle: str,
+        anger_pattern: str,
+        sadness_pattern: str,
+        reason_for_shooting: str,
+        athlete_goal: str,
+    ) -> HamsaTechAthleteDetails:
+        raise NotImplementedError("Not exercised by verify-otp tests.")
+
+    async def update_step_6(
+        self,
+        details: HamsaTechAthleteDetails,
+        *,
+        friend_circle: str,
+        anger_pattern: str,
+        sadness_pattern: str,
+        reason_for_shooting: str,
+        athlete_goal: str,
+    ) -> HamsaTechAthleteDetails:
+        raise NotImplementedError("Not exercised by verify-otp tests.")
+
+
+def _complete_details(athlete_id: str) -> HamsaTechAthleteDetails:
+    """An `athlete_details` row with every Step 6 field filled in — the completion signal."""
+    return HamsaTechAthleteDetails(
+        athlete_id=athlete_id,
+        friend_circle="Small, supportive",
+        anger_pattern="Rarely, quick to calm down",
+        sadness_pattern="Talks it through",
+        reason_for_shooting="Self interest",
+        athlete_goal="Olympic Gold Medal",
+    )
+
+
 @pytest.fixture
 def fake_otp_repository() -> FakeOTPRepository:
     return FakeOTPRepository()
@@ -125,21 +214,31 @@ def fake_athlete_repository() -> FakeAthleteProfileRepository:
 
 
 @pytest.fixture
+def fake_athlete_details_repository() -> FakeAthleteDetailsRepository:
+    return FakeAthleteDetailsRepository()
+
+
+@pytest.fixture
 def wired_client(
     client: TestClient,
     fake_otp_repository: FakeOTPRepository,
     fake_user_repository: FakeUserRepository,
     fake_athlete_repository: FakeAthleteProfileRepository,
+    fake_athlete_details_repository: FakeAthleteDetailsRepository,
 ) -> Iterator[TestClient]:
     client.app.dependency_overrides[get_otp_repository] = lambda: fake_otp_repository
     client.app.dependency_overrides[get_user_repository] = lambda: fake_user_repository
     client.app.dependency_overrides[get_athlete_profile_repository] = lambda: fake_athlete_repository
+    client.app.dependency_overrides[get_athlete_details_repository] = (
+        lambda: fake_athlete_details_repository
+    )
     try:
         yield client
     finally:
         client.app.dependency_overrides.pop(get_otp_repository, None)
         client.app.dependency_overrides.pop(get_user_repository, None)
         client.app.dependency_overrides.pop(get_athlete_profile_repository, None)
+        client.app.dependency_overrides.pop(get_athlete_details_repository, None)
 
 
 def _payload(phone: str = VALID_PHONE, otp: str = VALID_OTP) -> dict[str, str]:
@@ -178,23 +277,68 @@ def test_verify_otp_creates_athlete_profile_linked_by_phone(
     assert created.contact_number == VALID_PHONE
 
 
-# --- Happy path: existing athlete -> HOME -----------------------------------------
+# --- Happy path: existing athlete, onboarding complete -> HOME ---------------------
 
 
-def test_verify_otp_existing_athlete_returns_home(
+def test_verify_otp_existing_athlete_with_completed_onboarding_returns_home(
     wired_client: TestClient,
     fake_otp_repository: FakeOTPRepository,
     fake_athlete_repository: FakeAthleteProfileRepository,
+    fake_athlete_details_repository: FakeAthleteDetailsRepository,
 ) -> None:
     fake_otp_repository.seed(VALID_PHONE, VALID_OTP)
     fake_athlete_repository.athletes[VALID_PHONE] = HamsaTechAthlete(
-        athlete_id="ASA999", contact_number=VALID_PHONE
+        athlete_id="ASA999", contact_number=VALID_PHONE, current_onboarding_step=6
     )
+    fake_athlete_details_repository.details["ASA999"] = _complete_details("ASA999")
 
     response = wired_client.post(ENDPOINT, json=_payload())
 
     assert response.status_code == 200
     assert response.json()["next_step"] == "HOME"
+
+
+# --- Existing athlete, onboarding incomplete -> resume at saved step ---------------
+
+
+@pytest.mark.parametrize("saved_step", [1, 2, 3, 4, 5, 6])
+def test_verify_otp_existing_athlete_with_incomplete_onboarding_resumes_at_saved_step(
+    wired_client: TestClient,
+    fake_otp_repository: FakeOTPRepository,
+    fake_athlete_repository: FakeAthleteProfileRepository,
+    saved_step: int,
+) -> None:
+    fake_otp_repository.seed(VALID_PHONE, VALID_OTP)
+    fake_athlete_repository.athletes[VALID_PHONE] = HamsaTechAthlete(
+        athlete_id="ASA999", contact_number=VALID_PHONE, current_onboarding_step=saved_step
+    )
+    # No athlete_details row at all -> onboarding is not complete regardless of step.
+
+    response = wired_client.post(ENDPOINT, json=_payload())
+
+    assert response.status_code == 200
+    assert response.json()["next_step"] == f"ONBOARDING_STEP_{saved_step}"
+
+
+def test_verify_otp_existing_athlete_with_partial_step_6_details_resumes_at_step_6(
+    wired_client: TestClient,
+    fake_otp_repository: FakeOTPRepository,
+    fake_athlete_repository: FakeAthleteProfileRepository,
+    fake_athlete_details_repository: FakeAthleteDetailsRepository,
+) -> None:
+    """Details row exists but not every Step-6 field is filled in -> still incomplete."""
+    fake_otp_repository.seed(VALID_PHONE, VALID_OTP)
+    fake_athlete_repository.athletes[VALID_PHONE] = HamsaTechAthlete(
+        athlete_id="ASA999", contact_number=VALID_PHONE, current_onboarding_step=6
+    )
+    fake_athlete_details_repository.details["ASA999"] = HamsaTechAthleteDetails(
+        athlete_id="ASA999", friend_circle="Small, supportive"
+    )
+
+    response = wired_client.post(ENDPOINT, json=_payload())
+
+    assert response.status_code == 200
+    assert response.json()["next_step"] == "ONBOARDING_STEP_6"
 
 
 def test_verify_otp_existing_user_is_new_user_false(

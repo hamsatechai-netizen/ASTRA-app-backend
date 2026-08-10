@@ -1,18 +1,18 @@
 """
-Onboarding router — Steps 1-4 (Batch 1).
+Onboarding router — Steps 1-6 plus completion (Batches 1 and 2).
 
 Every endpoint requires an authenticated athlete (`get_current_athlete`)
 and delegates entirely to `OnboardingService`, which reads/updates the
-existing `hamsatech.athletes` row (and, for Step 4, the existing
+existing `hamsatech.athletes` row (and, for Steps 4-6, the existing
 `hamsatech.athlete_details` row) matched by the authenticated identity's
 phone number. Mounted under `/api/v2/onboarding` via
 `app/api/v2/router.py`, giving the full paths `/api/v2/onboarding`,
-`/api/v2/onboarding/step-1`, `/step-2`, `/step-3`, and `/step-4`.
+`/api/v2/onboarding/step-1` through `/step-6`.
 
-Step 1's endpoint (`save_onboarding_step_1`) is unchanged from the
-previous batch; only the GET endpoint's description was updated (as
-directed) to reflect that it now also returns Steps 2-4 data, and new
-`/step-2`, `/step-3`, `/step-4` endpoints were added below it.
+Steps 1-4's endpoints are unchanged from the previous batch; only the
+GET endpoint's description was updated (as directed) to reflect that it
+now also returns Steps 5-6 data and completion status, and new
+`/step-5`, `/step-6` endpoints were added below `/step-4`.
 """
 
 from typing import Any
@@ -29,6 +29,8 @@ from app.modules.onboarding.schemas import (
     OnboardingStep2Request,
     OnboardingStep3Request,
     OnboardingStep4Request,
+    OnboardingStep5Request,
+    OnboardingStep6Request,
 )
 from app.modules.onboarding.services.onboarding_service import OnboardingService
 
@@ -77,6 +79,22 @@ _STEP_4_RESPONSES: dict[int | str, dict[str, Any]] = {
     },
 }
 
+_STEP_5_RESPONSES: dict[int | str, dict[str, Any]] = {
+    **_ONBOARDING_RESPONSES,
+    status.HTTP_422_UNPROCESSABLE_ENTITY: {
+        "model": ErrorResponse,
+        "description": "One or more Step 5 fields failed validation.",
+    },
+}
+
+_STEP_6_RESPONSES: dict[int | str, dict[str, Any]] = {
+    **_ONBOARDING_RESPONSES,
+    status.HTTP_422_UNPROCESSABLE_ENTITY: {
+        "model": ErrorResponse,
+        "description": "One or more Step 6 fields failed validation.",
+    },
+}
+
 
 @router.get(
     "",
@@ -84,7 +102,7 @@ _STEP_4_RESPONSES: dict[int | str, dict[str, Any]] = {
     responses=_ONBOARDING_RESPONSES,
     summary="Get the authenticated athlete's onboarding status",
     description=(
-        "Returns the athlete ID, current onboarding step, Steps 1-4 data "
+        "Returns the athlete ID, current onboarding step, Steps 1-6 data "
         "(whichever have already been saved), and overall completion status "
         "for the authenticated athlete."
     ),
@@ -183,3 +201,51 @@ async def save_onboarding_step_4(
 ) -> OnboardingStatusResponse:
     """Save `payload` as Step 4 of onboarding for the authenticated athlete."""
     return await onboarding_service.complete_step_4(identity.phone_number, payload)
+
+
+@router.put(
+    "/step-5",
+    response_model=OnboardingStatusResponse,
+    responses=_STEP_5_RESPONSES,
+    summary="Save Step 5 (Lifestyle & Wellness) of onboarding",
+    description=(
+        "Validates and saves diet type, outside-food frequency, sleep time, "
+        "and wake time onto the authenticated athlete's `athlete_details` "
+        "row, creating it once if it doesn't exist yet (never duplicating "
+        "it), then advances `current_onboarding_step` to 6. Never creates a "
+        "new athlete record."
+    ),
+    tags=["Onboarding"],
+)
+async def save_onboarding_step_5(
+    payload: OnboardingStep5Request,
+    identity: AuthenticatedIdentity = Depends(get_current_athlete),
+    onboarding_service: OnboardingService = Depends(get_onboarding_service),
+) -> OnboardingStatusResponse:
+    """Save `payload` as Step 5 of onboarding for the authenticated athlete."""
+    return await onboarding_service.complete_step_5(identity.phone_number, payload)
+
+
+@router.put(
+    "/step-6",
+    response_model=OnboardingStatusResponse,
+    responses=_STEP_6_RESPONSES,
+    summary="Save Step 6 (Mental & Social Profile) of onboarding — final step",
+    description=(
+        "Validates and saves friend circle, anger pattern, sadness pattern, "
+        "reason for shooting, and athlete goal onto the authenticated "
+        "athlete's `athlete_details` row, creating it once if it doesn't "
+        "exist yet (never duplicating it). This is the final onboarding "
+        "step: `current_onboarding_step` is set to 6 (it does not advance "
+        "further) and `is_onboarding_complete` becomes `true`. Never "
+        "creates a new athlete record."
+    ),
+    tags=["Onboarding"],
+)
+async def save_onboarding_step_6(
+    payload: OnboardingStep6Request,
+    identity: AuthenticatedIdentity = Depends(get_current_athlete),
+    onboarding_service: OnboardingService = Depends(get_onboarding_service),
+) -> OnboardingStatusResponse:
+    """Save `payload` as Step 6 of onboarding for the authenticated athlete."""
+    return await onboarding_service.complete_step_6(identity.phone_number, payload)

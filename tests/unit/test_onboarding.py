@@ -1,5 +1,5 @@
 """
-Comprehensive onboarding Steps 1-4 tests.
+Comprehensive onboarding Steps 1-6 tests.
 
 Uses fakes for the user, onboarding, and athlete-details repositories
 (via FastAPI's `dependency_overrides`) instead of a real Postgres/Supabase
@@ -38,6 +38,8 @@ STEP_1_ENDPOINT = "/api/v2/onboarding/step-1"
 STEP_2_ENDPOINT = "/api/v2/onboarding/step-2"
 STEP_3_ENDPOINT = "/api/v2/onboarding/step-3"
 STEP_4_ENDPOINT = "/api/v2/onboarding/step-4"
+STEP_5_ENDPOINT = "/api/v2/onboarding/step-5"
+STEP_6_ENDPOINT = "/api/v2/onboarding/step-6"
 PHONE_NUMBER = "+919876543210"
 ATHLETE_ID = "ASA001"
 ACADEMY_ID = "11111111-1111-1111-1111-111111111111"
@@ -68,6 +70,21 @@ VALID_STEP_4_BODY = {
     "class": "9th",
     "schoolName": "Sri Prakash",
     "academicPerformance": "80-90%",
+}
+
+VALID_STEP_5_BODY = {
+    "dietType": "Mix",
+    "outsideFoodFrequency": "Weekly",
+    "sleepTime": "7hrs",
+    "wakeTime": "5:30 AM",
+}
+
+VALID_STEP_6_BODY = {
+    "friendCircle": "Small, supportive",
+    "angerPattern": "Rarely, quick to calm down",
+    "sadnessPattern": "Talks it through",
+    "reasonForShooting": "Parents' encouragement, self interest",
+    "athleteGoal": "Olympic Gold Medal",
 }
 
 
@@ -186,6 +203,78 @@ class FakeAthleteDetailsRepository(AthleteDetailsRepositoryInterface):
         details.class_ = class_
         details.school_name = school_name
         details.academic_performance = academic_performance
+        return details
+
+    async def create_step_5(
+        self,
+        athlete_id: str,
+        *,
+        diet_type: str,
+        outside_food_frequency: str,
+        sleep_time: str,
+        wake_time: str,
+    ) -> HamsaTechAthleteDetails:
+        details = HamsaTechAthleteDetails(
+            athlete_id=athlete_id,
+            diet_type=diet_type,
+            outside_food_frequency=outside_food_frequency,
+            sleep_time=sleep_time,
+            wake_time=wake_time,
+        )
+        self.details[athlete_id] = details
+        return details
+
+    async def update_step_5(
+        self,
+        details: HamsaTechAthleteDetails,
+        *,
+        diet_type: str,
+        outside_food_frequency: str,
+        sleep_time: str,
+        wake_time: str,
+    ) -> HamsaTechAthleteDetails:
+        details.diet_type = diet_type
+        details.outside_food_frequency = outside_food_frequency
+        details.sleep_time = sleep_time
+        details.wake_time = wake_time
+        return details
+
+    async def create_step_6(
+        self,
+        athlete_id: str,
+        *,
+        friend_circle: str,
+        anger_pattern: str,
+        sadness_pattern: str,
+        reason_for_shooting: str,
+        athlete_goal: str,
+    ) -> HamsaTechAthleteDetails:
+        details = HamsaTechAthleteDetails(
+            athlete_id=athlete_id,
+            friend_circle=friend_circle,
+            anger_pattern=anger_pattern,
+            sadness_pattern=sadness_pattern,
+            reason_for_shooting=reason_for_shooting,
+            athlete_goal=athlete_goal,
+        )
+        self.details[athlete_id] = details
+        return details
+
+    async def update_step_6(
+        self,
+        details: HamsaTechAthleteDetails,
+        *,
+        friend_circle: str,
+        anger_pattern: str,
+        sadness_pattern: str,
+        reason_for_shooting: str,
+        athlete_goal: str,
+    ) -> HamsaTechAthleteDetails:
+        details.friend_circle = friend_circle
+        details.anger_pattern = anger_pattern
+        details.sadness_pattern = sadness_pattern
+        details.reason_for_shooting = reason_for_shooting
+        details.athlete_goal = athlete_goal
         return details
 
 
@@ -658,3 +747,252 @@ def test_get_onboarding_reflects_all_steps(
     # Step 4
     assert body["school_class"] == "9th"
     assert body["academic_performance"] == "80-90%"
+
+
+# --- PUT /api/v2/onboarding/step-5 ------------------------------------------------
+
+
+def test_put_step_5_creates_athlete_details_when_none_exists(
+    wired_client: TestClient,
+    auth_headers: dict[str, str],
+    fake_onboarding_repository: FakeOnboardingRepository,
+    fake_athlete_details_repository: FakeAthleteDetailsRepository,
+) -> None:
+    fake_onboarding_repository.athletes[PHONE_NUMBER] = _existing_athlete(current_onboarding_step=5)
+    assert ATHLETE_ID not in fake_athlete_details_repository.details
+
+    response = wired_client.put(STEP_5_ENDPOINT, json=VALID_STEP_5_BODY, headers=auth_headers)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["current_onboarding_step"] == 6
+    assert body["diet_type"] == "Mix"
+    assert body["outside_food_frequency"] == "Weekly"
+    assert body["sleep_time"] == "7hrs"
+    assert body["wake_time"] == "5:30 AM"
+    assert body["is_onboarding_complete"] is False  # Step 6 not saved yet
+
+    saved = fake_onboarding_repository.athletes[PHONE_NUMBER]
+    assert saved.current_onboarding_step == 6
+    assert ATHLETE_ID in fake_athlete_details_repository.details
+
+
+def test_put_step_5_updates_existing_athlete_details_without_duplicating(
+    wired_client: TestClient,
+    auth_headers: dict[str, str],
+    fake_onboarding_repository: FakeOnboardingRepository,
+    fake_athlete_details_repository: FakeAthleteDetailsRepository,
+) -> None:
+    fake_onboarding_repository.athletes[PHONE_NUMBER] = _existing_athlete(current_onboarding_step=5)
+    fake_athlete_details_repository.details[ATHLETE_ID] = HamsaTechAthleteDetails(
+        athlete_id=ATHLETE_ID, class_="9th", school_name="Sri Prakash", academic_performance="80-90%"
+    )
+
+    response = wired_client.put(STEP_5_ENDPOINT, json=VALID_STEP_5_BODY, headers=auth_headers)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["diet_type"] == "Mix"
+    # Step 4 data preserved, not overwritten by Step 5's update.
+    assert body["school_class"] == "9th"
+    assert body["school_name"] == "Sri Prakash"
+
+    assert len(fake_athlete_details_repository.details) == 1
+
+
+def test_put_step_5_athlete_not_found(
+    wired_client: TestClient,
+    auth_headers: dict[str, str],
+    fake_onboarding_repository: FakeOnboardingRepository,
+) -> None:
+    response = wired_client.put(STEP_5_ENDPOINT, json=VALID_STEP_5_BODY, headers=auth_headers)
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "ATHLETE_NOT_FOUND"
+
+
+@pytest.mark.parametrize(
+    "invalid_body",
+    [
+        {k: v for k, v in VALID_STEP_5_BODY.items() if k != "dietType"},
+        {**VALID_STEP_5_BODY, "dietType": ""},
+        {k: v for k, v in VALID_STEP_5_BODY.items() if k != "outsideFoodFrequency"},
+        {**VALID_STEP_5_BODY, "outsideFoodFrequency": ""},
+        {k: v for k, v in VALID_STEP_5_BODY.items() if k != "sleepTime"},
+        {**VALID_STEP_5_BODY, "sleepTime": ""},
+        {k: v for k, v in VALID_STEP_5_BODY.items() if k != "wakeTime"},
+        {**VALID_STEP_5_BODY, "wakeTime": ""},
+    ],
+)
+def test_put_step_5_rejects_invalid_bodies(
+    wired_client: TestClient,
+    auth_headers: dict[str, str],
+    fake_onboarding_repository: FakeOnboardingRepository,
+    invalid_body: dict[str, object],
+) -> None:
+    fake_onboarding_repository.athletes[PHONE_NUMBER] = _existing_athlete(current_onboarding_step=5)
+
+    response = wired_client.put(STEP_5_ENDPOINT, json=invalid_body, headers=auth_headers)
+
+    assert response.status_code == 422
+
+
+def test_put_step_5_requires_authentication(wired_client: TestClient) -> None:
+    response = wired_client.put(STEP_5_ENDPOINT, json=VALID_STEP_5_BODY)
+    assert response.status_code == 401
+
+
+# --- PUT /api/v2/onboarding/step-6 ------------------------------------------------
+
+
+def test_put_step_6_creates_athlete_details_when_none_exists(
+    wired_client: TestClient,
+    auth_headers: dict[str, str],
+    fake_onboarding_repository: FakeOnboardingRepository,
+    fake_athlete_details_repository: FakeAthleteDetailsRepository,
+) -> None:
+    fake_onboarding_repository.athletes[PHONE_NUMBER] = _existing_athlete(current_onboarding_step=6)
+    assert ATHLETE_ID not in fake_athlete_details_repository.details
+
+    response = wired_client.put(STEP_6_ENDPOINT, json=VALID_STEP_6_BODY, headers=auth_headers)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["friend_circle"] == "Small, supportive"
+    assert body["anger_pattern"] == "Rarely, quick to calm down"
+    assert body["sadness_pattern"] == "Talks it through"
+    assert body["reason_for_shooting"] == "Parents' encouragement, self interest"
+    assert body["athlete_goal"] == "Olympic Gold Medal"
+
+    saved = fake_onboarding_repository.athletes[PHONE_NUMBER]
+    assert saved.current_onboarding_step == 6
+    assert ATHLETE_ID in fake_athlete_details_repository.details
+
+
+def test_put_step_6_updates_existing_athlete_details_without_duplicating(
+    wired_client: TestClient,
+    auth_headers: dict[str, str],
+    fake_onboarding_repository: FakeOnboardingRepository,
+    fake_athlete_details_repository: FakeAthleteDetailsRepository,
+) -> None:
+    fake_onboarding_repository.athletes[PHONE_NUMBER] = _existing_athlete(current_onboarding_step=6)
+    fake_athlete_details_repository.details[ATHLETE_ID] = HamsaTechAthleteDetails(
+        athlete_id=ATHLETE_ID, diet_type="Mix", sleep_time="7hrs"
+    )
+
+    response = wired_client.put(STEP_6_ENDPOINT, json=VALID_STEP_6_BODY, headers=auth_headers)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["athlete_goal"] == "Olympic Gold Medal"
+    # Step 5 data preserved, not overwritten by Step 6's update.
+    assert body["diet_type"] == "Mix"
+    assert body["sleep_time"] == "7hrs"
+
+    assert len(fake_athlete_details_repository.details) == 1
+
+
+def test_put_step_6_athlete_not_found(
+    wired_client: TestClient,
+    auth_headers: dict[str, str],
+    fake_onboarding_repository: FakeOnboardingRepository,
+) -> None:
+    response = wired_client.put(STEP_6_ENDPOINT, json=VALID_STEP_6_BODY, headers=auth_headers)
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "ATHLETE_NOT_FOUND"
+
+
+@pytest.mark.parametrize(
+    "invalid_body",
+    [
+        {k: v for k, v in VALID_STEP_6_BODY.items() if k != "friendCircle"},
+        {**VALID_STEP_6_BODY, "friendCircle": ""},
+        {k: v for k, v in VALID_STEP_6_BODY.items() if k != "angerPattern"},
+        {**VALID_STEP_6_BODY, "angerPattern": ""},
+        {k: v for k, v in VALID_STEP_6_BODY.items() if k != "sadnessPattern"},
+        {**VALID_STEP_6_BODY, "sadnessPattern": ""},
+        {k: v for k, v in VALID_STEP_6_BODY.items() if k != "reasonForShooting"},
+        {**VALID_STEP_6_BODY, "reasonForShooting": ""},
+        {k: v for k, v in VALID_STEP_6_BODY.items() if k != "athleteGoal"},
+        {**VALID_STEP_6_BODY, "athleteGoal": ""},
+    ],
+)
+def test_put_step_6_rejects_invalid_bodies(
+    wired_client: TestClient,
+    auth_headers: dict[str, str],
+    fake_onboarding_repository: FakeOnboardingRepository,
+    invalid_body: dict[str, object],
+) -> None:
+    fake_onboarding_repository.athletes[PHONE_NUMBER] = _existing_athlete(current_onboarding_step=6)
+
+    response = wired_client.put(STEP_6_ENDPOINT, json=invalid_body, headers=auth_headers)
+
+    assert response.status_code == 422
+
+
+def test_put_step_6_requires_authentication(wired_client: TestClient) -> None:
+    response = wired_client.put(STEP_6_ENDPOINT, json=VALID_STEP_6_BODY)
+    assert response.status_code == 401
+
+
+# --- Onboarding completion ---------------------------------------------------------
+
+
+def test_step_6_marks_onboarding_complete(
+    wired_client: TestClient,
+    auth_headers: dict[str, str],
+    fake_onboarding_repository: FakeOnboardingRepository,
+    fake_athlete_details_repository: FakeAthleteDetailsRepository,
+) -> None:
+    fake_onboarding_repository.athletes[PHONE_NUMBER] = _existing_athlete(current_onboarding_step=6)
+
+    response = wired_client.put(STEP_6_ENDPOINT, json=VALID_STEP_6_BODY, headers=auth_headers)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["current_onboarding_step"] == 6
+    assert body["is_onboarding_complete"] is True
+
+
+def test_get_onboarding_reflects_completion_after_step_6(
+    wired_client: TestClient,
+    auth_headers: dict[str, str],
+    fake_onboarding_repository: FakeOnboardingRepository,
+    fake_athlete_details_repository: FakeAthleteDetailsRepository,
+) -> None:
+    fake_onboarding_repository.athletes[PHONE_NUMBER] = _existing_athlete(current_onboarding_step=6)
+    fake_athlete_details_repository.details[ATHLETE_ID] = HamsaTechAthleteDetails(
+        athlete_id=ATHLETE_ID,
+        friend_circle="Small",
+        anger_pattern="Rare",
+        sadness_pattern="Talks",
+        reason_for_shooting="Interest",
+        athlete_goal="Nationals",
+    )
+
+    response = wired_client.get(STATUS_ENDPOINT, headers=auth_headers)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["current_onboarding_step"] == 6
+    assert body["is_onboarding_complete"] is True
+
+
+def test_get_onboarding_not_complete_before_step_6(
+    wired_client: TestClient,
+    auth_headers: dict[str, str],
+    fake_onboarding_repository: FakeOnboardingRepository,
+    fake_athlete_details_repository: FakeAthleteDetailsRepository,
+) -> None:
+    # current_onboarding_step reads 6 (set by Step 5), but Step 6's own
+    # fields haven't been saved yet — must not be reported as complete.
+    fake_onboarding_repository.athletes[PHONE_NUMBER] = _existing_athlete(current_onboarding_step=6)
+    fake_athlete_details_repository.details[ATHLETE_ID] = HamsaTechAthleteDetails(
+        athlete_id=ATHLETE_ID, diet_type="Mix"
+    )
+
+    response = wired_client.get(STATUS_ENDPOINT, headers=auth_headers)
+
+    assert response.status_code == 200
+    assert response.json()["is_onboarding_complete"] is False
