@@ -2,11 +2,13 @@
 
 from app.common.responses import ErrorResponse
 from app.modules.heart_rate.schemas.requests import HrSampleBatchRequest, HrSampleItem
-from app.modules.heart_rate.schemas.responses import HrSampleBatchResponse
+from app.modules.heart_rate.schemas.responses import HrPointResponse, HrSampleBatchResponse, SessionHrResponse
 
 __all__ = [
     "HrSampleBatchRequest",
     "HrSampleItem",
     "HrSampleBatchResponse",
+    "HrPointResponse",
+    "SessionHrResponse",
     "ErrorResponse",
 ]

@@ -6,6 +6,7 @@ never commits — the request-scoped `AsyncSession` from
 """
 
 import uuid
+from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -34,5 +35,14 @@ class SessionRepository(SessionRepositoryInterface):
             start_time=utc_now().replace(tzinfo=None),
         )
         self._session.add(row)
+        await self._session.flush()
+        return row
+
+    async def get_by_id(self, session_id: uuid.UUID) -> Session | None:
+        result = await self._session.execute(select(Session).where(Session.session_id == session_id))
+        return result.scalar_one_or_none()
+
+    async def complete(self, row: Session, end_time: datetime) -> Session:
+        row.end_time = end_time.replace(tzinfo=None)
         await self._session.flush()
         return row

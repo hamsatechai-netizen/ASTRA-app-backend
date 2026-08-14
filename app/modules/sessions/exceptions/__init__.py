@@ -23,4 +23,16 @@ class AthleteNotFoundException(NotFoundException):
     message = "No athlete profile was found for the authenticated account."
 
 
-__all__ = ["SessionException", "AthleteNotFoundException", "ForbiddenException"]
+class SessionNotFoundException(NotFoundException):
+    """No `hamsatech.sessions` row exists for the given `session_id`."""
+
+    error_code = "SESSION_NOT_FOUND"
+    message = "No session was found for the given session_id."
+
+
+__all__ = [
+    "SessionException",
+    "AthleteNotFoundException",
+    "SessionNotFoundException",
+    "ForbiddenException",
+]

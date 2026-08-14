@@ -7,12 +7,14 @@ never commits — the request-scoped `AsyncSession` from
 
 from collections.abc import Sequence
 from datetime import UTC
+from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.hamsatech_athlete import HamsaTechAthlete
 from app.models.hr_stream import HrStream
+from app.models.session import Session
 from app.modules.heart_rate.repositories.hr_stream_repository_interface import (
     HrSampleRecord,
     HrStreamRepositoryInterface,
@@ -43,3 +45,25 @@ class HrStreamRepository(HrStreamRepositoryInterface):
         self._session.add_all(rows)
         await self._session.flush()
         return len(rows)
+
+    async def get_session_by_id(self, session_id: UUID) -> Session | None:
+        result = await self._session.execute(select(Session).where(Session.session_id == session_id))
+        return result.scalar_one_or_none()
+
+    async def get_samples_for_session(self, session_id: UUID) -> Sequence[HrSampleRecord]:
+        result = await self._session.execute(
+            select(HrStream).where(HrStream.session_id == session_id).order_by(HrStream.recorded_at)
+        )
+        samples: list[HrSampleRecord] = []
+        for row in result.scalars():
+            if row.recorded_at is None or row.heart_rate is None:
+                continue
+            samples.append(
+                HrSampleRecord(
+                    session_id=session_id,
+                    recorded_at=row.recorded_at,
+                    heart_rate=row.heart_rate,
+                    rr_interval=row.rr_interval,
+                )
+            )
+        return samples

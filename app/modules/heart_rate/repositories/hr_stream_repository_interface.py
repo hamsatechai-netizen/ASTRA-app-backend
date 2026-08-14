@@ -22,11 +22,12 @@ from datetime import datetime
 from uuid import UUID
 
 from app.models.hamsatech_athlete import HamsaTechAthlete
+from app.models.session import Session
 
 
 @dataclass(frozen=True, slots=True)
 class HrSampleRecord:
-    """One HR sample, already validated, ready to persist."""
+    """One HR sample, already validated, ready to persist or already read back."""
 
     session_id: UUID
     recorded_at: datetime
@@ -35,7 +36,7 @@ class HrSampleRecord:
 
 
 class HrStreamRepositoryInterface(ABC):
-    """Abstract contract for resolving the athlete and writing their HR samples."""
+    """Abstract contract for resolving the athlete and reading/writing their HR samples."""
 
     @abstractmethod
     async def get_athlete_by_contact_number(self, phone_number: str) -> HamsaTechAthlete | None:
@@ -44,3 +45,11 @@ class HrStreamRepositoryInterface(ABC):
     @abstractmethod
     async def create_many(self, athlete_id: str, samples: Sequence[HrSampleRecord]) -> int:
         """Insert one `hr_stream` row per sample for `athlete_id`. Returns the number inserted."""
+
+    @abstractmethod
+    async def get_session_by_id(self, session_id: UUID) -> Session | None:
+        """Return the `hamsatech.sessions` row with `session_id`, if any."""
+
+    @abstractmethod
+    async def get_samples_for_session(self, session_id: UUID) -> Sequence[HrSampleRecord]:
+        """Return every `hr_stream` row for `session_id`, ordered by `recorded_at` ascending."""
