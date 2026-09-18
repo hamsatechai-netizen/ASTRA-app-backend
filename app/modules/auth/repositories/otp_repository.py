@@ -5,13 +5,15 @@ Implements `OTPRepositoryInterface` against the `otp_challenges` table.
 Only ever flushes, never commits — the request-scoped `AsyncSession` from
 `app.dependencies.database.get_db` owns the transaction boundary and
 commits (or rolls back, e.g. if SMS delivery subsequently fails) once the
-route completes.
+route completes — with ONE deliberate exception: `increment_attempts`,
+which must survive the rollback that follows a failed verification and
+therefore commits in its own short transaction (see its docstring).
 """
 
 from datetime import datetime
 
-from sqlalchemy import delete, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import delete, select, update
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from app.models.otp_challenge import OTPChallenge
 from app.modules.auth.repositories.otp_repository_interface import OTPRepositoryInterface
@@ -47,12 +49,37 @@ class OTPRepository(OTPRepositoryInterface):
         return challenge
 
     async def increment_attempts(self, phone_number: str) -> int:
-        existing = await self.get_by_phone(phone_number)
-        if existing is None:
-            return 0
-        existing.attempts += 1
-        await self._session.flush()
-        return existing.attempts
+        """
+        Increment `attempts` for `phone_number`'s challenge, durably, and return the new value.
+
+        Why this commits when nothing else here does: `OTPService.verify_otp`
+        calls this and then raises `InvalidOTPException`. That exception
+        leaves the request, and `get_db` rolls the request-scoped session
+        back — so an increment merely flushed into that session was discarded
+        every time, and the five-attempt lockout never engaged (found by the
+        isolated Postgres smoke test: seven wrong codes left `attempts` at 0).
+
+        The increment therefore runs, and commits, in its own short
+        transaction on a separate pooled connection taken from the session's
+        engine. It is a single atomic `attempts = attempts + 1` UPDATE, so
+        concurrent wrong attempts cannot lose increments either. Nothing
+        pending in the request session is committed by this call; the
+        request's own rollback still discards everything else, exactly as
+        before. `updated_at` is bumped by the column's `onupdate`, matching
+        the previous ORM-flush behaviour. Returns 0 if no challenge exists.
+        """
+        bind = self._session.bind
+        if not isinstance(bind, AsyncEngine):
+            raise RuntimeError("OTPRepository.increment_attempts requires a session bound to an AsyncEngine.")
+        async with bind.begin() as connection:
+            result = await connection.execute(
+                update(OTPChallenge)
+                .where(OTPChallenge.phone_number == phone_number)
+                .values(attempts=OTPChallenge.attempts + 1)
+                .returning(OTPChallenge.attempts)
+            )
+            attempts = result.scalar_one_or_none()
+        return attempts if attempts is not None else 0
 
     async def delete_by_phone(self, phone_number: str) -> None:
         await self._session.execute(delete(OTPChallenge).where(OTPChallenge.phone_number == phone_number))

@@ -60,6 +60,9 @@ class OTPService:
         Raises `InvalidOTPException` if no challenge exists (or the code is
         wrong), `OTPExpiredException` if the challenge has expired, or
         `TooManyAttemptsException` if the attempt limit has been reached.
+        A wrong code increments the attempt counter *durably* — the repository
+        commits it independently of this request's transaction, which is
+        rolled back when the exception propagates — before raising.
         On success the challenge is deleted so it can never be replayed.
         """
         challenge = await self._repository.get_by_phone(phone_number)

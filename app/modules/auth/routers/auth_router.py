@@ -46,6 +46,16 @@ _VERIFY_OTP_RESPONSES: dict[int | str, dict[str, Any]] = {
         "model": ErrorResponse,
         "description": "The OTP is invalid or has expired.",
     },
+    status.HTTP_409_CONFLICT: {
+        "model": ErrorResponse,
+        "description": (
+            "Identity mapping conflict: for a brand-new athlete, the account's existing uid "
+            "disagrees with the generated athlete_id (IDENTITY_CONFLICT), or that athlete_id is "
+            "already linked to another account (UID_ALREADY_ASSIGNED); or, for any login, the "
+            "phone number matches more than one athlete profile (AMBIGUOUS_ATHLETE_MATCH). "
+            "Nothing is persisted."
+        ),
+    },
     status.HTTP_422_UNPROCESSABLE_ENTITY: {
         "model": ErrorResponse,
         "description": "The phone number or OTP code failed format validation.",

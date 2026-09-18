@@ -35,12 +35,19 @@ class AuthService:
         Raises `InvalidOTPException`, `OTPExpiredException`, or
         `TooManyAttemptsException` if verification fails — nothing below
         that point runs, so no user/athlete record is touched for a wrong
-        or expired code.
+        or expired code. Can also raise `IdentityConflictException` or
+        `UidAlreadyAssignedException` (both 409; see
+        `UserService.resolve_onboarding_status`) for a brand-new athlete
+        whose account already carries a conflicting `uid`, or whose
+        generated `athlete_id` is already another account's `uid` — an
+        existing-data edge case, not expected on the normal new-signup
+        path. Either propagates out of the request so `get_db` rolls the
+        whole transaction back.
         """
         await self._otp_service.verify_otp(phone_number, otp_code)
 
         user, is_new_user = await self._user_service.get_or_create_user(phone_number)
-        next_step = await self._user_service.resolve_onboarding_status(phone_number)
+        next_step = await self._user_service.resolve_onboarding_status(phone_number, user)
         tokens = await self._token_service.issue_tokens(user.id)
 
         return AuthResponse(

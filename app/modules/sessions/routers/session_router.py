@@ -16,15 +16,19 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, status
 
+from app.dependencies.pagination import PaginationParams, get_pagination_params
 from app.modules.auth.dependencies.current_athlete import get_current_athlete
 from app.modules.auth.schemas.identity import AuthenticatedIdentity
-from app.modules.sessions.dependencies.services import get_session_service
+from app.modules.sessions.dependencies.services import get_session_list_service, get_session_service
 from app.modules.sessions.schemas import (
     CompleteSessionRequest,
     CreateSessionRequest,
     ErrorResponse,
+    PaginatedResponse,
+    SessionHistoryItem,
     SessionResponse,
 )
+from app.modules.sessions.services.session_list_service import SessionListService
 from app.modules.sessions.services.session_service import SessionService
 
 router = APIRouter()
@@ -57,6 +61,24 @@ _COMPLETE_SESSION_RESPONSES: dict[int | str, dict[str, Any]] = {
         "exists for session_id.",
     },
 }
+
+
+@router.get(
+    "/athletes/{athlete_id}/sessions",
+    response_model=PaginatedResponse[SessionHistoryItem],
+    status_code=status.HTTP_200_OK,
+    responses=_SESSION_RESPONSES,
+    summary="List the authenticated athlete's completed training sessions, newest first",
+    tags=["Sessions"],
+)
+async def list_sessions(
+    athlete_id: str,
+    pagination: PaginationParams = Depends(get_pagination_params),
+    identity: AuthenticatedIdentity = Depends(get_current_athlete),
+    session_list_service: SessionListService = Depends(get_session_list_service),
+) -> PaginatedResponse[SessionHistoryItem]:
+    """Return one page of `athlete_id`'s completed sessions, if they belong to the caller."""
+    return await session_list_service.list_sessions(identity.phone_number, athlete_id, pagination)
 
 
 @router.post(
