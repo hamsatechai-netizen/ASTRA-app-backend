@@ -13,7 +13,7 @@ from typing import Any
 from uuid import UUID
 
 import jwt
-from jwt import InvalidTokenError
+from jwt import ExpiredSignatureError, InvalidTokenError
 
 from app.config.settings import get_settings
 from app.modules.auth.constants import (
@@ -21,7 +21,7 @@ from app.modules.auth.constants import (
     JWT_ALGORITHM,
     REFRESH_TOKEN_EXPIRE_DAYS,
 )
-from app.modules.auth.exceptions import InvalidTokenException
+from app.modules.auth.exceptions import InvalidTokenException, TokenExpiredException
 from app.modules.auth.security.expiry import utc_expiry
 from app.utils.datetime import utc_now
 
@@ -51,13 +51,18 @@ def decode_token(token: str) -> dict[str, Any]:
     """
     Decode and verify `token`'s signature and expiry, returning its claims.
 
-    Raises `InvalidTokenException` for any malformed, expired, or
-    signature-invalid token, so callers never need to know about PyJWT's
-    own exception hierarchy.
+    Raises `TokenExpiredException` for a well-formed, correctly-signed
+    token past its `exp`, and `InvalidTokenException` for anything else
+    malformed or signature-invalid — so callers never need to know about
+    PyJWT's own exception hierarchy, and can tell "just log in again" apart
+    from a real problem. `ExpiredSignatureError` is a subclass of
+    `InvalidTokenError`, so it must be caught first.
     """
     settings = get_settings()
     try:
         claims: dict[str, Any] = jwt.decode(token, settings.SECRET_KEY, algorithms=[JWT_ALGORITHM])
+    except ExpiredSignatureError as exc:
+        raise TokenExpiredException() from exc
     except InvalidTokenError as exc:
         raise InvalidTokenException() from exc
     return claims

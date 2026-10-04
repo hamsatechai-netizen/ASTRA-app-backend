@@ -44,3 +44,12 @@ class VerifyOTPRequest(BaseSchema):
         description="The one-time passcode received via SMS.",
         examples=["123456"],
     )
+
+
+class RefreshTokenRequest(BaseSchema):
+    """Request body for `POST /api/v2/auth/refresh`."""
+
+    refresh_token: str = Field(
+        ...,
+        description="The long-lived refresh token issued at login (or by a prior refresh).",
+    )

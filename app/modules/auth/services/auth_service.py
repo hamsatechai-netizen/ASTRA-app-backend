@@ -6,7 +6,7 @@ Coordinates `OTPService` (challenge/verification), `UserService`
 into the two auth use cases the API exposes.
 """
 
-from app.modules.auth.schemas.responses import AuthResponse, OTPSentResponse
+from app.modules.auth.schemas.responses import AuthResponse, OTPSentResponse, TokenRefreshResponse
 from app.modules.auth.services.otp_service import OTPService
 from app.modules.auth.services.token_service import TokenService
 from app.modules.auth.services.user_service import UserService
@@ -35,12 +35,19 @@ class AuthService:
         Raises `InvalidOTPException`, `OTPExpiredException`, or
         `TooManyAttemptsException` if verification fails — nothing below
         that point runs, so no user/athlete record is touched for a wrong
-        or expired code.
+        or expired code. Can also raise `IdentityConflictException` or
+        `UidAlreadyAssignedException` (both 409; see
+        `UserService.resolve_onboarding_status`) for a brand-new athlete
+        whose account already carries a conflicting `uid`, or whose
+        generated `athlete_id` is already another account's `uid` — an
+        existing-data edge case, not expected on the normal new-signup
+        path. Either propagates out of the request so `get_db` rolls the
+        whole transaction back.
         """
         await self._otp_service.verify_otp(phone_number, otp_code)
 
         user, is_new_user = await self._user_service.get_or_create_user(phone_number)
-        next_step = await self._user_service.resolve_onboarding_status(phone_number)
+        next_step = await self._user_service.resolve_onboarding_status(phone_number, user)
         tokens = await self._token_service.issue_tokens(user.id)
 
         return AuthResponse(
@@ -50,4 +57,22 @@ class AuthService:
             user_id=user.id,
             is_new_user=is_new_user,
             next_step=next_step,
+        )
+
+    async def refresh_tokens(self, refresh_token: str) -> TokenRefreshResponse:
+        """
+        Exchange `refresh_token` for a new access/refresh token pair.
+
+        Raises `InvalidTokenException` (401) for a malformed token, the
+        wrong token type, or a bad signature; `TokenExpiredException` (401)
+        for a well-formed refresh token past its 30-day expiry — both
+        propagate unchanged from `TokenService.refresh_access_token`, so a
+        client can distinguish "log in again" from a real problem exactly
+        as it already does for an expired access token.
+        """
+        tokens = await self._token_service.refresh_access_token(refresh_token)
+        return TokenRefreshResponse(
+            access_token=tokens.access_token,
+            refresh_token=tokens.refresh_token,
+            expires_in=tokens.expires_in,
         )

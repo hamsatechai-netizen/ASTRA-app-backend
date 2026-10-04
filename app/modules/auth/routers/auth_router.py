@@ -1,13 +1,14 @@
 """
 Auth router.
 
-Both endpoints are fully implemented, each delegating entirely to
-`AuthService`: `send_otp` enforces the resend cooldown, generates and
-hashes the OTP, persists it, and dispatches it via SMS; `verify_otp`
-verifies the code, resolves (or creates) the user identity and athlete
-onboarding status, and issues a token pair. Mounted under `/api/v2/auth`
-via `app/api/v2/router.py`, giving the full paths
-`/api/v2/auth/phone/send-otp` and `/api/v2/auth/phone/verify-otp`.
+All three endpoints delegate entirely to `AuthService`: `send_otp`
+enforces the resend cooldown, generates and hashes the OTP, persists it,
+and dispatches it via SMS; `verify_otp` verifies the code, resolves (or
+creates) the user identity and athlete onboarding status, and issues a
+token pair; `refresh` exchanges a valid refresh token for a new pair,
+without re-running OTP verification. Mounted under `/api/v2/auth` via
+`app/api/v2/router.py`, giving the full paths `/api/v2/auth/phone/send-otp`,
+`/api/v2/auth/phone/verify-otp`, and `/api/v2/auth/refresh`.
 """
 
 from typing import Any
@@ -19,7 +20,9 @@ from app.modules.auth.schemas import (
     AuthResponse,
     ErrorResponse,
     OTPSentResponse,
+    RefreshTokenRequest,
     SendOTPRequest,
+    TokenRefreshResponse,
     VerifyOTPRequest,
 )
 from app.modules.auth.services.auth_service import AuthService
@@ -41,10 +44,36 @@ _SEND_OTP_RESPONSES: dict[int | str, dict[str, Any]] = {
     },
 }
 
+_REFRESH_RESPONSES: dict[int | str, dict[str, Any]] = {
+    status.HTTP_401_UNAUTHORIZED: {
+        "model": ErrorResponse,
+        "description": (
+            "The refresh token is malformed, has an invalid signature, is an access token "
+            "presented as a refresh token (INVALID_TOKEN), or is a well-formed refresh token "
+            "past its 30-day expiry (TOKEN_EXPIRED) — either way, the client must send the "
+            "user through OTP login again."
+        ),
+    },
+    status.HTTP_422_UNPROCESSABLE_ENTITY: {
+        "model": ErrorResponse,
+        "description": "The request body is missing `refresh_token`.",
+    },
+}
+
 _VERIFY_OTP_RESPONSES: dict[int | str, dict[str, Any]] = {
     status.HTTP_400_BAD_REQUEST: {
         "model": ErrorResponse,
         "description": "The OTP is invalid or has expired.",
+    },
+    status.HTTP_409_CONFLICT: {
+        "model": ErrorResponse,
+        "description": (
+            "Identity mapping conflict: for a brand-new athlete, the account's existing uid "
+            "disagrees with the generated athlete_id (IDENTITY_CONFLICT), or that athlete_id is "
+            "already linked to another account (UID_ALREADY_ASSIGNED); or, for any login, the "
+            "phone number matches more than one athlete profile (AMBIGUOUS_ATHLETE_MATCH). "
+            "Nothing is persisted."
+        ),
     },
     status.HTTP_422_UNPROCESSABLE_ENTITY: {
         "model": ErrorResponse,
@@ -100,3 +129,23 @@ async def verify_otp(
 ) -> AuthResponse:
     """Verify `payload.otp_code` for `payload.phone_number` and authenticate."""
     return await auth_service.verify_otp(payload.phone_number, payload.otp_code)
+
+
+@router.post(
+    "/refresh",
+    response_model=TokenRefreshResponse,
+    responses=_REFRESH_RESPONSES,
+    summary="Exchange a refresh token for a new access token",
+    description=(
+        "Validates the given refresh token and issues a new access/refresh token pair. "
+        "The request and response are never logged with their token contents — only the "
+        "generic error code on failure."
+    ),
+    tags=["Authentication"],
+)
+async def refresh(
+    payload: RefreshTokenRequest,
+    auth_service: AuthService = Depends(get_auth_service),
+) -> TokenRefreshResponse:
+    """Exchange `payload.refresh_token` for a new access/refresh token pair."""
+    return await auth_service.refresh_tokens(payload.refresh_token)

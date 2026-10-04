@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     # --- API ---------------------------------------------------------------
     API_V1_PREFIX: str = "/api/v1"
     API_V2_PREFIX: str = "/api/v2"
+    # Unversioned namespace for the small set of `/api/mobile/athletes/...`
+    # endpoints the Flutter client already calls directly (see app/api/mobile).
+    API_MOBILE_PREFIX: str = "/api/mobile"
 
     # --- Security ------------------------------------------------------------
     SECRET_KEY: str = Field(

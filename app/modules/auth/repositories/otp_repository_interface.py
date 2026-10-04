@@ -26,7 +26,14 @@ class OTPRepositoryInterface(ABC):
 
     @abstractmethod
     async def increment_attempts(self, phone_number: str) -> int:
-        """Increment and return the verification-attempt counter for `phone_number`'s active challenge."""
+        """
+        Increment and return the verification-attempt counter for `phone_number`'s active challenge.
+
+        Must be durable independently of the caller's transaction: the caller
+        raises immediately afterwards and the request transaction is rolled
+        back, so an implementation that only flushes into that transaction
+        silently loses the increment, and with it the attempt cap.
+        """
 
     @abstractmethod
     async def delete_by_phone(self, phone_number: str) -> None:

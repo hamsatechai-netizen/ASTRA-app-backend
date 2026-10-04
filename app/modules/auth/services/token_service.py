@@ -12,7 +12,8 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from app.modules.auth.constants import ACCESS_TOKEN_EXPIRE_MINUTES
-from app.modules.auth.security import create_access_token, create_refresh_token
+from app.modules.auth.exceptions import InvalidTokenException
+from app.modules.auth.security import create_access_token, create_refresh_token, decode_token
 
 
 @dataclass(frozen=True)
@@ -34,8 +35,25 @@ class TokenService:
         )
 
     async def refresh_access_token(self, refresh_token: str) -> TokenPair:
-        """Exchange a valid, unexpired refresh token for a new access token."""
-        raise NotImplementedError("Token refresh is implemented in a later phase.")
+        """
+        Exchange a valid, unexpired refresh token for a new access/refresh
+        token pair (rotation — the old refresh token is not re-issued).
+
+        `decode_token` already raises `TokenExpiredException` for an
+        expired-but-correctly-signed token and `InvalidTokenException` for
+        anything malformed or signature-invalid, so both propagate
+        unchanged. On top of that, this rejects an otherwise-valid *access*
+        token presented here instead of a refresh token — the same
+        `type` check `get_current_athlete` does in reverse.
+        """
+        claims = decode_token(refresh_token)
+        if claims.get("type") != "refresh":
+            raise InvalidTokenException("A refresh token is required.")
+        try:
+            subject = UUID(str(claims["sub"]))
+        except (KeyError, ValueError) as exc:
+            raise InvalidTokenException() from exc
+        return await self.issue_tokens(subject)
 
     async def revoke_token(self, token: str) -> None:
         """Revoke `token` (logout)."""

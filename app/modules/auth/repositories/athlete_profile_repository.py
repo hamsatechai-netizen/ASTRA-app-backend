@@ -12,11 +12,12 @@ next ID; the lock releases automatically at commit or rollback — no
 schema change required.
 """
 
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.hamsatech_athlete import HamsaTechAthlete
 from app.modules.auth.repositories.athlete_profile_repository_interface import (
+    AthleteContactMatch,
     AthleteProfileRepositoryInterface,
 )
 
@@ -29,11 +30,34 @@ class AthleteProfileRepository(AthleteProfileRepositoryInterface):
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def get_by_contact_number(self, phone_number: str) -> HamsaTechAthlete | None:
+    async def get_by_contact_number(self, phone_number: str) -> AthleteContactMatch:
+        # `.scalars().all()` + a length check, never `.scalar_one_or_none()`: the
+        # latter raises `MultipleResultsFound` the moment `contact_number` is
+        # duplicated (no unique constraint exists on it — see the Blocker B
+        # investigation), which used to crash the whole verify-otp request as an
+        # unhandled 500. This must never raise here; ambiguity is reported back
+        # to the caller as data (`AthleteContactMatch.is_ambiguous`), not as an
+        # exception, so `UserService` can reject it safely and deterministically
+        # instead of the database driver rejecting it violently.
         result = await self._session.execute(
             select(HamsaTechAthlete).where(HamsaTechAthlete.contact_number == phone_number)
         )
-        return result.scalar_one_or_none()
+        rows = result.scalars().all()
+        if len(rows) > 1:
+            return AthleteContactMatch(athlete=None, is_ambiguous=True)
+        return AthleteContactMatch(athlete=rows[0] if rows else None, is_ambiguous=False)
+
+    async def count_by_contact_number(self, phone_number: str) -> int:
+        # An independent, defense-in-depth re-check for UserService's uid
+        # self-heal guard specifically — see AthleteProfileRepositoryInterface
+        # .count_by_contact_number's docstring for why this stays separate from
+        # get_by_contact_number's own (now equally safe) ambiguity detection.
+        result = await self._session.execute(
+            select(func.count())
+            .select_from(HamsaTechAthlete)
+            .where(HamsaTechAthlete.contact_number == phone_number)
+        )
+        return result.scalar_one()
 
     async def create_minimal(self, phone_number: str) -> HamsaTechAthlete:
         athlete_id = await self._generate_next_athlete_id()

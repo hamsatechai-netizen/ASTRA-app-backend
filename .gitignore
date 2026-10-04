@@ -219,3 +219,17 @@ __marimo__/
 
 # macOS
 .DS_Store
+
+# Secrets, key material and local environment files — never commit
+.env.*
+!.env.example
+*.pem
+*.p12
+*.p8
+*.key
+*.jks
+*.keystore
+
+# Local editor / tooling config
+*.code-workspace
+.claude/

@@ -9,8 +9,18 @@ routers introduced as v2 follow the same pattern.
 
 from fastapi import APIRouter
 
+from app.modules.academies.routers import academy_router
 from app.modules.auth.routers import auth_router
+from app.modules.heart_rate.routers import heart_rate_router
+from app.modules.onboarding.routers import onboarding_router
+from app.modules.psychology_assessment.routers import psychology_assessment_router
 
 api_router = APIRouter()
 
 api_router.include_router(auth_router, prefix="/auth", tags=["Authentication"])
+api_router.include_router(onboarding_router, prefix="/onboarding", tags=["Onboarding"])
+api_router.include_router(academy_router, prefix="/academies", tags=["Academies"])
+api_router.include_router(
+    psychology_assessment_router, prefix="/psychology-assessment", tags=["Psychology Assessment"]
+)
+api_router.include_router(heart_rate_router, prefix="/heart-rate", tags=["Heart Rate"])

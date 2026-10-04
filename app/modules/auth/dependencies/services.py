@@ -25,6 +25,10 @@ from app.modules.auth.services.auth_service import AuthService
 from app.modules.auth.services.otp_service import OTPService
 from app.modules.auth.services.token_service import TokenService
 from app.modules.auth.services.user_service import UserService
+from app.modules.onboarding.dependencies.services import get_athlete_details_repository
+from app.modules.onboarding.repositories.athlete_details_repository_interface import (
+    AthleteDetailsRepositoryInterface,
+)
 
 
 def get_otp_repository(session: AsyncSession = Depends(get_db)) -> OTPRepositoryInterface:
@@ -55,8 +59,11 @@ def get_otp_service(
 def get_user_service(
     user_repository: UserRepositoryInterface = Depends(get_user_repository),
     athlete_repository: AthleteProfileRepositoryInterface = Depends(get_athlete_profile_repository),
+    athlete_details_repository: AthleteDetailsRepositoryInterface = Depends(
+        get_athlete_details_repository
+    ),
 ) -> UserService:
-    return UserService(user_repository, athlete_repository)
+    return UserService(user_repository, athlete_repository, athlete_details_repository)
 
 
 def get_token_service() -> TokenService:

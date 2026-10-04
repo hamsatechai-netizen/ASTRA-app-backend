@@ -30,7 +30,11 @@ class AuthResponse(BaseSchema):
     user_id: UUID = Field(..., description="Unique identifier of the authenticated user.")
     is_new_user: bool = Field(..., description="True if this OTP verification created a new user record.")
     next_step: OnboardingStatus = Field(
-        ..., description="Where the client should route to: HOME or ONBOARDING_STEP_1."
+        ...,
+        description=(
+            "Where the client should route to: HOME if onboarding is complete, "
+            "otherwise the athlete's saved onboarding step (ONBOARDING_STEP_1 .. ONBOARDING_STEP_6)."
+        ),
     )
 
 
@@ -39,3 +43,21 @@ class OTPSentResponse(BaseSchema):
 
     success: bool = Field(default=True, description="Whether the OTP was sent successfully.")
     message: str = Field(default="OTP sent successfully.", description="Human-readable result message.")
+
+
+class TokenRefreshResponse(BaseSchema):
+    """
+    Successful result of `POST /api/v2/auth/refresh`.
+
+    Deliberately not `AuthResponse`: a refresh exchanges tokens only, it
+    never re-resolves `is_new_user`/`next_step` (that identity/onboarding
+    resolution only happens on OTP verification), so reusing that schema
+    here would advertise fields this endpoint never actually recomputes.
+    """
+
+    access_token: str = Field(..., description="Newly issued short-lived JWT.")
+    refresh_token: str = Field(
+        ..., description="Newly issued long-lived refresh token — store this in place of the old one."
+    )
+    token_type: str = Field(default=TOKEN_TYPE_BEARER, description="RFC 6750 token type.")
+    expires_in: int = Field(..., description="Seconds until the new access token expires.")
