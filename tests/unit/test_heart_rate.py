@@ -206,6 +206,103 @@ def test_record_samples_success(
     assert fake_hr_repository.samples[session.session_id][0].heart_rate == 97
 
 
+# --- SESSION-1: invalid rr_interval handling, and recovery afterward --------------
+#
+# The Flutter client now validates rr_interval client-side before it's ever
+# buffered (HrTelemetryService.sanitizeRrInterval), so in normal operation an
+# out-of-range value should never reach this endpoint at all. These tests
+# cover the backend's own, independent half of the contract: the bounds
+# really are enforced here too (defense in depth, not just trusting the
+# client), rejection is whole-batch (confirming exactly the behavior that
+# used to let one bad sample block a client's entire buffer), and — the
+# actual regression — the backend itself carries no state across requests
+# that could get "stuck": a follow-up request with only valid samples on the
+# very same session succeeds normally right after a rejection.
+
+
+def test_record_samples_rejects_out_of_range_rr_interval(
+    wired_client: TestClient,
+    auth_headers: dict[str, str],
+    fake_hr_repository: FakeHrStreamRepository,
+) -> None:
+    session = _owned_session()
+    fake_hr_repository.sessions[session.session_id] = session
+    payload = _sample_payload(session.session_id)
+    payload["samples"][0]["rrInterval"] = 50  # below the 200ms minimum
+
+    response = wired_client.post(SAMPLES_ENDPOINT, json=payload, headers=auth_headers)
+
+    assert response.status_code == 422
+    assert fake_hr_repository.inserted == []
+
+
+def test_record_samples_one_invalid_sample_rejects_the_whole_batch(
+    wired_client: TestClient,
+    auth_headers: dict[str, str],
+    fake_hr_repository: FakeHrStreamRepository,
+) -> None:
+    """
+    Documents the exact mechanism SESSION-1 was about: Pydantic validates
+    the whole request body, so one malformed sample among otherwise-valid
+    ones rejects everything — nothing is silently partially accepted.
+    """
+    session = _owned_session()
+    fake_hr_repository.sessions[session.session_id] = session
+    now = utc_now().replace(tzinfo=None)
+    payload = {
+        "samples": [
+            {
+                "sessionId": str(session.session_id),
+                "recordedAt": now.isoformat(),
+                "heartRate": 90,
+                "rrInterval": 650,
+            },
+            {
+                "sessionId": str(session.session_id),
+                "recordedAt": now.isoformat(),
+                "heartRate": 92,
+                "rrInterval": 5000,  # above the 3000ms maximum — poisons the batch
+            },
+        ]
+    }
+
+    response = wired_client.post(SAMPLES_ENDPOINT, json=payload, headers=auth_headers)
+
+    assert response.status_code == 422
+    assert fake_hr_repository.inserted == [], "not even the valid sample in the batch should be written"
+
+
+def test_record_samples_valid_batch_succeeds_right_after_a_rejected_one(
+    wired_client: TestClient,
+    auth_headers: dict[str, str],
+    fake_hr_repository: FakeHrStreamRepository,
+) -> None:
+    """
+    The actual SESSION-1 regression, at the backend: a rejected batch must
+    never leave the endpoint itself in any state that blocks the next,
+    valid request for the same session — each request is handled
+    independently, with no server-side memory of a prior failure.
+    """
+    session = _owned_session()
+    fake_hr_repository.sessions[session.session_id] = session
+    bad_payload = _sample_payload(session.session_id)
+    bad_payload["samples"][0]["rrInterval"] = 50
+
+    rejected = wired_client.post(SAMPLES_ENDPOINT, json=bad_payload, headers=auth_headers)
+    assert rejected.status_code == 422
+
+    accepted = wired_client.post(
+        SAMPLES_ENDPOINT,
+        json=_sample_payload(session.session_id, heart_rate=101),
+        headers=auth_headers,
+    )
+
+    assert accepted.status_code == 201
+    assert accepted.json()["accepted"] == 1
+    assert len(fake_hr_repository.samples[session.session_id]) == 1
+    assert fake_hr_repository.samples[session.session_id][0].heart_rate == 101
+
+
 # --- GET .../sessions/{session_id}/heart-rate --------------------------------------
 
 

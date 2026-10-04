@@ -6,7 +6,7 @@ Coordinates `OTPService` (challenge/verification), `UserService`
 into the two auth use cases the API exposes.
 """
 
-from app.modules.auth.schemas.responses import AuthResponse, OTPSentResponse
+from app.modules.auth.schemas.responses import AuthResponse, OTPSentResponse, TokenRefreshResponse
 from app.modules.auth.services.otp_service import OTPService
 from app.modules.auth.services.token_service import TokenService
 from app.modules.auth.services.user_service import UserService
@@ -57,4 +57,22 @@ class AuthService:
             user_id=user.id,
             is_new_user=is_new_user,
             next_step=next_step,
+        )
+
+    async def refresh_tokens(self, refresh_token: str) -> TokenRefreshResponse:
+        """
+        Exchange `refresh_token` for a new access/refresh token pair.
+
+        Raises `InvalidTokenException` (401) for a malformed token, the
+        wrong token type, or a bad signature; `TokenExpiredException` (401)
+        for a well-formed refresh token past its 30-day expiry — both
+        propagate unchanged from `TokenService.refresh_access_token`, so a
+        client can distinguish "log in again" from a real problem exactly
+        as it already does for an expired access token.
+        """
+        tokens = await self._token_service.refresh_access_token(refresh_token)
+        return TokenRefreshResponse(
+            access_token=tokens.access_token,
+            refresh_token=tokens.refresh_token,
+            expires_in=tokens.expires_in,
         )
