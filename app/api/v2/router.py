@@ -14,6 +14,7 @@ from app.modules.auth.routers import auth_router
 from app.modules.heart_rate.routers import heart_rate_router
 from app.modules.onboarding.routers import onboarding_router
 from app.modules.psychology_assessment.routers import psychology_assessment_router
+from app.modules.sensor_streams.routers import acc_router, ecg_router
 
 api_router = APIRouter()
 
@@ -24,3 +25,5 @@ api_router.include_router(
     psychology_assessment_router, prefix="/psychology-assessment", tags=["Psychology Assessment"]
 )
 api_router.include_router(heart_rate_router, prefix="/heart-rate", tags=["Heart Rate"])
+api_router.include_router(ecg_router, prefix="/ecg", tags=["ECG"])
+api_router.include_router(acc_router, prefix="/acc", tags=["ACC"])

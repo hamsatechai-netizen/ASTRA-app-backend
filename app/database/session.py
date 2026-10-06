@@ -123,6 +123,10 @@ engine: AsyncEngine = create_async_engine(
     max_overflow=settings.DATABASE_MAX_OVERFLOW,
     pool_timeout=settings.DATABASE_POOL_TIMEOUT_SECONDS,
     pool_pre_ping=True,
+    # Keep bound parameter values (athlete IDs, raw ECG/ACC samples, ...) out of
+    # SQLAlchemy exception messages and echo logs — the unhandled-exception
+    # handler logs those messages verbatim.
+    hide_parameters=True,
     connect_args=build_connect_args(settings),
 )
 
